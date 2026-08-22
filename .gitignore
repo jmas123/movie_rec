@@ -60,3 +60,14 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# TMDB credential — real token lives here, never committed.
+# Copy Config/Secrets.xcconfig.example to create it.
+WatchRank/Config/Secrets.xcconfig
+
+# Python bytecode from dev scripts
+__pycache__/
+*.pyc
+
+# Xcode build output / derived data from local xcodebuild runs
+WatchRank/build/

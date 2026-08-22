@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Custom keys only. GENERATE_INFOPLIST_FILE stays YES, so Xcode merges
+	     everything it normally synthesises (bundle id, versions, scene
+	     manifest, orientations) on top of this file — those keys must NOT be
+	     duplicated here.
+
+	     Xcode's INFOPLIST_KEY_* build settings cannot carry a custom key: only
+	     a fixed allow-list of Apple-defined keys is mapped through. A partial
+	     Info.plist is the supported way to add one, and $(…) build settings are
+	     substituted here at build time. -->
+	<key>TMDBReadToken</key>
+	<string>$(TMDB_READ_TOKEN)</string>
+
+	<!-- Supabase (roadmap Part III). Undefined in a checkout with no
+	     Secrets.xcconfig, in which case these come out as empty strings and
+	     SupabaseConfiguration reports the app unconfigured: it launches signed
+	     out with social disabled, exactly as a missing TMDB token falls back to
+	     MockMediaService. An unconfigured checkout is a supported state.
+
+	     The anon key is a publishable credential and is *meant* to be in the
+	     bundle — it identifies the project and carries no privilege of its own.
+	     Row-level security in Postgres is the entire authorisation boundary.
+	     See docs/PART-III-SOCIAL.md §4. The service_role key must never appear
+	     here, or anywhere in the app. -->
+	<key>SupabaseURL</key>
+	<string>$(SUPABASE_URL)</string>
+	<key>SupabaseAnonKey</key>
+	<string>$(SUPABASE_ANON_KEY)</string>
+</dict>
+</plist>

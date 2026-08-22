@@ -1,0 +1,1351 @@
+[
+  {
+    "externalId": "tt0111161",
+    "title": "The Shawshank Redemption",
+    "year": 1994,
+    "type": "movie",
+    "overview": "A banker convicted of a crime he did not commit forges friendships and quiet defiance over two decades inside Shawshank State Penitentiary.",
+    "genres": [
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "tt1375666",
+    "title": "Inception",
+    "year": 2010,
+    "type": "movie",
+    "overview": "A thief who steals corporate secrets through dream-sharing technology is offered a chance at redemption if he can plant an idea in a target's subconscious.",
+    "genres": [
+      "Sci-Fi",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "tt2278388",
+    "title": "The Grand Budapest Hotel",
+    "year": 2014,
+    "type": "movie",
+    "overview": "The adventures of a legendary concierge at a famous European hotel between the wars, and his trusted lobby boy who becomes his protégé.",
+    "genres": [
+      "Comedy",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "tt5052448",
+    "title": "Get Out",
+    "year": 2017,
+    "type": "movie",
+    "overview": "A young Black man visits his white girlfriend's family estate for a weekend and gradually uncovers a horrifying secret beneath their welcoming smiles.",
+    "genres": [
+      "Horror",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "tt3783958",
+    "title": "La La Land",
+    "year": 2016,
+    "type": "movie",
+    "overview": "While pursuing their dreams in Los Angeles, a jazz pianist and an aspiring actress fall in love but find their ambitions pulling them apart.",
+    "genres": [
+      "Romance",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "tt0245429",
+    "title": "Spirited Away",
+    "year": 2001,
+    "type": "movie",
+    "overview": "During her family's move to the suburbs, a sullen ten-year-old girl wanders into a world ruled by gods, witches, and spirits where humans are turned into beasts.",
+    "genres": [
+      "Animation"
+    ]
+  },
+  {
+    "externalId": "tt7775622",
+    "title": "Free Solo",
+    "year": 2018,
+    "type": "movie",
+    "overview": "An intimate portrait of climber Alex Honnold as he prepares to climb El Capitan in Yosemite without a rope or safety gear.",
+    "genres": [
+      "Documentary"
+    ]
+  },
+  {
+    "externalId": "tt6751668",
+    "title": "Parasite",
+    "year": 2019,
+    "type": "movie",
+    "overview": "Greed and class discrimination threaten the newly formed symbiotic relationship between the wealthy Park family and the destitute Kim clan.",
+    "genres": [
+      "Thriller",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "tt1285016",
+    "title": "The Social Network",
+    "year": 2010,
+    "type": "movie",
+    "overview": "The story of how Facebook was founded amid lawsuits, betrayals, and the dizzying rise of its young founder Mark Zuckerberg.",
+    "genres": [
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "tt1160419",
+    "title": "Dune",
+    "year": 2021,
+    "type": "movie",
+    "overview": "A noble family is thrust into a war for control of the desert planet Arrakis, the only source of the most valuable substance in the universe.",
+    "genres": [
+      "Sci-Fi"
+    ]
+  },
+  {
+    "externalId": "tt8946378",
+    "title": "Knives Out",
+    "year": 2019,
+    "type": "movie",
+    "overview": "A detective investigates the death of a patriarch of an eccentric, combative family on the night of his 85th birthday party.",
+    "genres": [
+      "Comedy",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "tt4633694",
+    "title": "Spider-Man: Into the Spider-Verse",
+    "year": 2018,
+    "type": "movie",
+    "overview": "Teen Miles Morales becomes the Spider-Man of his reality and crosses paths with five counterparts from other dimensions to stop a threat to all realities.",
+    "genres": [
+      "Animation"
+    ]
+  },
+  {
+    "externalId": "tt7784604",
+    "title": "Hereditary",
+    "year": 2018,
+    "type": "movie",
+    "overview": "A grieving family is haunted by tragic and disturbing occurrences after the death of their secretive grandmother.",
+    "genres": [
+      "Horror"
+    ]
+  },
+  {
+    "externalId": "tt2194499",
+    "title": "About Time",
+    "year": 2013,
+    "type": "movie",
+    "overview": "A young man with the ability to travel through time tries to change his past in order to improve his future and find love.",
+    "genres": [
+      "Romance",
+      "Comedy"
+    ]
+  },
+  {
+    "externalId": "tt4975722",
+    "title": "Moonlight",
+    "year": 2016,
+    "type": "movie",
+    "overview": "A young Black man grapples with his identity and sexuality across three defining chapters of his life in a rough Miami neighborhood.",
+    "genres": [
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "tt0816692",
+    "title": "Interstellar",
+    "year": 2014,
+    "type": "movie",
+    "overview": "A team of explorers travels through a wormhole in space in an attempt to ensure humanity's survival as Earth becomes uninhabitable.",
+    "genres": [
+      "Sci-Fi",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "tt0468569",
+    "title": "The Dark Knight",
+    "year": 2008,
+    "type": "movie",
+    "overview": "Batman, Lieutenant Gordon, and District Attorney Harvey Dent confront an anarchic mastermind known as the Joker, who plunges Gotham into chaos.",
+    "genres": [
+      "Thriller",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "tt0903747",
+    "title": "Breaking Bad",
+    "year": 2008,
+    "type": "tvShow",
+    "overview": "A high school chemistry teacher diagnosed with cancer turns to producing and selling methamphetamine to secure his family's future.",
+    "genres": [
+      "Drama",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "tt0386676",
+    "title": "The Office",
+    "year": 2005,
+    "type": "tvShow",
+    "overview": "A mockumentary on the daily lives of the eccentric employees at a Dunder Mifflin paper company branch in Scranton, Pennsylvania.",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "externalId": "tt8111088",
+    "title": "The Mandalorian",
+    "year": 2019,
+    "type": "tvShow",
+    "overview": "A lone gunfighter makes his way through the outer reaches of the galaxy, far from the authority of the New Republic, after the fall of the Empire.",
+    "genres": [
+      "Sci-Fi"
+    ]
+  },
+  {
+    "externalId": "tt4574334",
+    "title": "Stranger Things",
+    "year": 2016,
+    "type": "tvShow",
+    "overview": "When a young boy disappears from a small Indiana town, his friends and family confront terrifying supernatural forces to bring him home.",
+    "genres": [
+      "Sci-Fi",
+      "Horror"
+    ]
+  },
+  {
+    "externalId": "tt5491994",
+    "title": "Planet Earth II",
+    "year": 2016,
+    "type": "tvShow",
+    "overview": "Six episodes exploring the wildlife of islands, mountains, jungles, deserts, grasslands, and cities, narrated by David Attenborough.",
+    "genres": [
+      "Documentary"
+    ]
+  },
+  {
+    "externalId": "tt11126994",
+    "title": "Arcane",
+    "year": 2021,
+    "type": "tvShow",
+    "overview": "Set in the utopian Piltover and oppressed undercity Zaun, this animated series follows the origins of two iconic League of Legends champions.",
+    "genres": [
+      "Animation"
+    ]
+  },
+  {
+    "externalId": "tt4786824",
+    "title": "The Crown",
+    "year": 2016,
+    "type": "tvShow",
+    "overview": "A biographical story about the reign of Queen Elizabeth II, from her wedding in 1947 through to the early twenty-first century.",
+    "genres": [
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "tt5687612",
+    "title": "Fleabag",
+    "year": 2016,
+    "type": "tvShow",
+    "overview": "A young woman tries to cope with modern life in London while coming to terms with a recent tragedy, breaking the fourth wall along the way.",
+    "genres": [
+      "Comedy",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "tt11280740",
+    "title": "Severance",
+    "year": 2022,
+    "type": "tvShow",
+    "overview": "Office workers undergo a procedure that surgically divides their memories between their work and personal lives, with unsettling consequences.",
+    "genres": [
+      "Sci-Fi",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "tt8740790",
+    "title": "Bridgerton",
+    "year": 2020,
+    "type": "tvShow",
+    "overview": "Eight close-knit siblings of the powerful Bridgerton family navigate love and ambition through the lens of Regency-era London's social season.",
+    "genres": [
+      "Romance",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "tt3398228",
+    "title": "BoJack Horseman",
+    "year": 2014,
+    "type": "tvShow",
+    "overview": "A washed-up animated horse and former 90s sitcom star navigates fame, addiction, and his own self-loathing in a Hollywood populated by humans and anthropomorphic animals.",
+    "genres": [
+      "Animation",
+      "Comedy"
+    ]
+  },
+  {
+    "externalId": "tt4476098",
+    "title": "Chef's Table",
+    "year": 2015,
+    "type": "tvShow",
+    "overview": "Each episode profiles a single world-renowned chef and explores their unique cooking philosophy and personal story.",
+    "genres": [
+      "Documentary"
+    ]
+  },
+  {
+    "externalId": "tt3032476",
+    "title": "Better Call Saul",
+    "year": 2015,
+    "type": "tvShow",
+    "overview": "The trials and tribulations of criminal lawyer Jimmy McGill in the years leading up to his fateful encounter with Walter White.",
+    "genres": [
+      "Drama",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0001",
+    "title": "Everything Everywhere All at Once",
+    "year": 2022,
+    "type": "movie",
+    "overview": "A laundromat owner audited by the IRS discovers she must connect with parallel versions of herself to save the multiverse.",
+    "genres": [
+      "Sci-Fi",
+      "Comedy",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0002",
+    "title": "Whiplash",
+    "year": 2014,
+    "type": "movie",
+    "overview": "A young jazz drummer is pushed to breaking point by an instructor who believes cruelty produces greatness.",
+    "genres": [
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0003",
+    "title": "Arrival",
+    "year": 2016,
+    "type": "movie",
+    "overview": "A linguist is recruited to communicate with visiting aliens and finds the language reshapes how she experiences time.",
+    "genres": [
+      "Sci-Fi",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0004",
+    "title": "Mad Max: Fury Road",
+    "year": 2015,
+    "type": "movie",
+    "overview": "A drifter and a renegade commander flee a warlord across a desert wasteland in one sustained chase.",
+    "genres": [
+      "Thriller",
+      "Sci-Fi"
+    ]
+  },
+  {
+    "externalId": "wr-0005",
+    "title": "The Prestige",
+    "year": 2006,
+    "type": "movie",
+    "overview": "Two rival magicians in Victorian London escalate a feud into obsession and self-destruction.",
+    "genres": [
+      "Drama",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0006",
+    "title": "No Country for Old Men",
+    "year": 2007,
+    "type": "movie",
+    "overview": "A hunter takes money from a drug deal gone wrong and is pursued by a killer with his own code.",
+    "genres": [
+      "Thriller",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0007",
+    "title": "Portrait of a Lady on Fire",
+    "year": 2019,
+    "type": "movie",
+    "overview": "A painter commissioned to portray a reluctant bride falls into a brief, watchful love affair.",
+    "genres": [
+      "Romance",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0008",
+    "title": "Your Name",
+    "year": 2016,
+    "type": "movie",
+    "overview": "Two teenagers discover they are inexplicably swapping bodies across a distance neither understands.",
+    "genres": [
+      "Animation",
+      "Romance"
+    ]
+  },
+  {
+    "externalId": "wr-0009",
+    "title": "The Lighthouse",
+    "year": 2019,
+    "type": "movie",
+    "overview": "Two keepers on a remote island descend into paranoia as a storm strands them together.",
+    "genres": [
+      "Horror",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0010",
+    "title": "Nope",
+    "year": 2022,
+    "type": "movie",
+    "overview": "Ranch-owning siblings try to capture footage of something impossible hiding above their valley.",
+    "genres": [
+      "Horror",
+      "Sci-Fi"
+    ]
+  },
+  {
+    "externalId": "wr-0011",
+    "title": "Past Lives",
+    "year": 2023,
+    "type": "movie",
+    "overview": "Two childhood friends separated by emigration reunite decades later and weigh the life they didn't have.",
+    "genres": [
+      "Romance",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0012",
+    "title": "Anatomy of a Fall",
+    "year": 2023,
+    "type": "movie",
+    "overview": "A novelist stands trial for her husband's death while their son becomes the case's uncertain witness.",
+    "genres": [
+      "Drama",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0013",
+    "title": "The Social Dilemma",
+    "year": 2020,
+    "type": "movie",
+    "overview": "Former technology insiders describe how the products they built were designed to capture attention.",
+    "genres": [
+      "Documentary"
+    ]
+  },
+  {
+    "externalId": "wr-0014",
+    "title": "Apollo 11",
+    "year": 2019,
+    "type": "movie",
+    "overview": "Restored archive footage assembles the first crewed Moon landing with no narration.",
+    "genres": [
+      "Documentary"
+    ]
+  },
+  {
+    "externalId": "wr-0015",
+    "title": "Won't You Be My Neighbor?",
+    "year": 2018,
+    "type": "movie",
+    "overview": "A portrait of Fred Rogers and the quiet radicalism of his children's programming.",
+    "genres": [
+      "Documentary"
+    ]
+  },
+  {
+    "externalId": "wr-0016",
+    "title": "Sicario",
+    "year": 2015,
+    "type": "movie",
+    "overview": "An FBI agent joins a shadowy task force at the border and finds the rules are not what she was told.",
+    "genres": [
+      "Thriller",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0017",
+    "title": "Ex Machina",
+    "year": 2014,
+    "type": "movie",
+    "overview": "A programmer is invited to assess whether a reclusive CEO's android is genuinely conscious.",
+    "genres": [
+      "Sci-Fi",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0018",
+    "title": "Her",
+    "year": 2013,
+    "type": "movie",
+    "overview": "A lonely writer falls in love with an operating system that is growing faster than he can follow.",
+    "genres": [
+      "Romance",
+      "Sci-Fi"
+    ]
+  },
+  {
+    "externalId": "wr-0019",
+    "title": "Coco",
+    "year": 2017,
+    "type": "movie",
+    "overview": "A boy who dreams of music crosses into the Land of the Dead and uncovers his family's buried history.",
+    "genres": [
+      "Animation",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0020",
+    "title": "Inside Out",
+    "year": 2015,
+    "type": "movie",
+    "overview": "The emotions inside an eleven-year-old struggle to manage her move to a new city.",
+    "genres": [
+      "Animation",
+      "Comedy"
+    ]
+  },
+  {
+    "externalId": "wr-0021",
+    "title": "The Grand Escape",
+    "year": 1963,
+    "type": "movie",
+    "overview": "Allied prisoners engineer an audacious mass breakout from a supposedly escape-proof camp.",
+    "genres": [
+      "Drama",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0022",
+    "title": "Rear Window",
+    "year": 1954,
+    "type": "movie",
+    "overview": "A photographer confined to his apartment becomes convinced a neighbour has committed murder.",
+    "genres": [
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0023",
+    "title": "Some Like It Hot",
+    "year": 1959,
+    "type": "movie",
+    "overview": "Two musicians who witness a mob killing hide in an all-women band and complicate everything.",
+    "genres": [
+      "Comedy",
+      "Romance"
+    ]
+  },
+  {
+    "externalId": "wr-0024",
+    "title": "Casablanca",
+    "year": 1942,
+    "type": "movie",
+    "overview": "A nightclub owner in wartime Morocco must choose between an old love and a larger cause.",
+    "genres": [
+      "Romance",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0025",
+    "title": "Chungking Express",
+    "year": 1994,
+    "type": "movie",
+    "overview": "Two lovesick Hong Kong policemen drift through overlapping stories of longing and chance.",
+    "genres": [
+      "Romance",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0026",
+    "title": "In the Mood for Love",
+    "year": 2000,
+    "type": "movie",
+    "overview": "Two neighbours who suspect their spouses of an affair form a restrained attachment of their own.",
+    "genres": [
+      "Romance",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0027",
+    "title": "Oldboy",
+    "year": 2003,
+    "type": "movie",
+    "overview": "A man imprisoned for fifteen years without explanation is released and given days to find out why.",
+    "genres": [
+      "Thriller",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0028",
+    "title": "Train to Busan",
+    "year": 2016,
+    "type": "movie",
+    "overview": "An outbreak traps passengers on a high-speed train where the safest carriage keeps changing.",
+    "genres": [
+      "Horror",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0029",
+    "title": "The Handmaiden",
+    "year": 2016,
+    "type": "movie",
+    "overview": "A pickpocket placed as a maid in a remote estate finds the con she joined has several authors.",
+    "genres": [
+      "Thriller",
+      "Romance"
+    ]
+  },
+  {
+    "externalId": "wr-0030",
+    "title": "Burning",
+    "year": 2018,
+    "type": "movie",
+    "overview": "A young writer grows convinced that his friend's wealthy acquaintance is hiding something.",
+    "genres": [
+      "Drama",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0031",
+    "title": "Drive",
+    "year": 2011,
+    "type": "movie",
+    "overview": "A Hollywood stunt driver who moonlights as a getaway wheelman is drawn into protecting a neighbour.",
+    "genres": [
+      "Thriller",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0032",
+    "title": "Blade Runner 2049",
+    "year": 2017,
+    "type": "movie",
+    "overview": "A replicant detective uncovers a secret that could unravel what remains of society.",
+    "genres": [
+      "Sci-Fi",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0033",
+    "title": "Children of Men",
+    "year": 2006,
+    "type": "movie",
+    "overview": "In a world without births, a former activist escorts the only pregnant woman alive to safety.",
+    "genres": [
+      "Sci-Fi",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0034",
+    "title": "Gattaca",
+    "year": 1997,
+    "type": "movie",
+    "overview": "A man born without genetic engineering assumes another identity to reach space.",
+    "genres": [
+      "Sci-Fi",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0035",
+    "title": "The Truman Show",
+    "year": 1998,
+    "type": "movie",
+    "overview": "A man discovers his entire life has been broadcast as television without his knowledge.",
+    "genres": [
+      "Drama",
+      "Comedy"
+    ]
+  },
+  {
+    "externalId": "wr-0036",
+    "title": "Eternal Sunshine of the Spotless Mind",
+    "year": 2004,
+    "type": "movie",
+    "overview": "A couple erase each other from memory and find the process harder to complete than expected.",
+    "genres": [
+      "Romance",
+      "Sci-Fi"
+    ]
+  },
+  {
+    "externalId": "wr-0037",
+    "title": "Lost in Translation",
+    "year": 2003,
+    "type": "movie",
+    "overview": "Two Americans adrift in Tokyo form a brief friendship in the hours neither can sleep.",
+    "genres": [
+      "Drama",
+      "Romance"
+    ]
+  },
+  {
+    "externalId": "wr-0038",
+    "title": "Little Miss Sunshine",
+    "year": 2006,
+    "type": "movie",
+    "overview": "A dysfunctional family drives cross-country in a failing van to reach a children's pageant.",
+    "genres": [
+      "Comedy",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0039",
+    "title": "The Big Lebowski",
+    "year": 1998,
+    "type": "movie",
+    "overview": "A slacker mistaken for a millionaire is pulled into a kidnapping he is spectacularly unsuited to solve.",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "externalId": "wr-0040",
+    "title": "Booksmart",
+    "year": 2019,
+    "type": "movie",
+    "overview": "Two high achievers realise on graduation eve that they have missed the entire point of school.",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "externalId": "wr-0041",
+    "title": "Palm Springs",
+    "year": 2020,
+    "type": "movie",
+    "overview": "Two wedding guests trapped in a repeating day negotiate what to do with infinite time.",
+    "genres": [
+      "Comedy",
+      "Romance"
+    ]
+  },
+  {
+    "externalId": "wr-0042",
+    "title": "The Farewell",
+    "year": 2019,
+    "type": "movie",
+    "overview": "A family stages a wedding so their matriarch never learns she is dying.",
+    "genres": [
+      "Drama",
+      "Comedy"
+    ]
+  },
+  {
+    "externalId": "wr-0043",
+    "title": "Minari",
+    "year": 2020,
+    "type": "movie",
+    "overview": "A Korean-American family stakes everything on a farm in rural Arkansas.",
+    "genres": [
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0044",
+    "title": "Nomadland",
+    "year": 2020,
+    "type": "movie",
+    "overview": "A woman who lost everything in the recession takes to the road living out of a van.",
+    "genres": [
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0045",
+    "title": "Sound of Metal",
+    "year": 2019,
+    "type": "movie",
+    "overview": "A drummer loses his hearing and must decide whether to fight the change or live inside it.",
+    "genres": [
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0046",
+    "title": "A Separation",
+    "year": 2011,
+    "type": "movie",
+    "overview": "A couple's divorce collides with a caregiving dispute in a case where everyone is partly right.",
+    "genres": [
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0047",
+    "title": "Roma",
+    "year": 2018,
+    "type": "movie",
+    "overview": "A year in the life of a domestic worker for a middle-class family in 1970s Mexico City.",
+    "genres": [
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0048",
+    "title": "City of God",
+    "year": 2002,
+    "type": "movie",
+    "overview": "Two boys in a Rio favela take opposite paths as organised crime consumes the neighbourhood.",
+    "genres": [
+      "Drama",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0049",
+    "title": "Amélie",
+    "year": 2001,
+    "type": "movie",
+    "overview": "A shy Parisian waitress engineers small interventions in the lives of strangers.",
+    "genres": [
+      "Romance",
+      "Comedy"
+    ]
+  },
+  {
+    "externalId": "wr-0050",
+    "title": "The Lives of Others",
+    "year": 2006,
+    "type": "movie",
+    "overview": "A Stasi officer assigned to surveil a playwright is changed by what he overhears.",
+    "genres": [
+      "Drama",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0051",
+    "title": "Pan's Labyrinth",
+    "year": 2006,
+    "type": "movie",
+    "overview": "A girl in Francoist Spain retreats into a mythic underworld with rules of its own.",
+    "genres": [
+      "Drama",
+      "Horror"
+    ]
+  },
+  {
+    "externalId": "wr-0052",
+    "title": "Spider-Man: Across the Spider-Verse",
+    "year": 2023,
+    "type": "movie",
+    "overview": "Miles Morales travels the multiverse and collides with a society that thinks it knows his fate.",
+    "genres": [
+      "Animation",
+      "Sci-Fi"
+    ]
+  },
+  {
+    "externalId": "wr-0053",
+    "title": "The Wind Rises",
+    "year": 2013,
+    "type": "movie",
+    "overview": "An aircraft designer pursues beautiful machines in a country bending toward war.",
+    "genres": [
+      "Animation",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0054",
+    "title": "Princess Mononoke",
+    "year": 1997,
+    "type": "movie",
+    "overview": "A cursed prince walks into a war between an iron-working town and the forest gods.",
+    "genres": [
+      "Animation",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0055",
+    "title": "Grave of the Fireflies",
+    "year": 1988,
+    "type": "movie",
+    "overview": "Two siblings try to survive the last months of the war after losing their mother.",
+    "genres": [
+      "Animation",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0056",
+    "title": "Klaus",
+    "year": 2019,
+    "type": "movie",
+    "overview": "A spoiled postman posted to a feuding island befriends a reclusive toymaker.",
+    "genres": [
+      "Animation",
+      "Comedy"
+    ]
+  },
+  {
+    "externalId": "wr-0057",
+    "title": "Hereditary Roots",
+    "year": 2021,
+    "type": "movie",
+    "overview": "A family archivist uncovers a pattern in generations of unexplained deaths.",
+    "genres": [
+      "Horror",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0058",
+    "title": "The Babadook",
+    "year": 2014,
+    "type": "movie",
+    "overview": "A widow and her son are haunted by a figure from a children's book that will not leave.",
+    "genres": [
+      "Horror",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0059",
+    "title": "It Follows",
+    "year": 2014,
+    "type": "movie",
+    "overview": "A young woman is pursued by something patient that only she can see.",
+    "genres": [
+      "Horror",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0060",
+    "title": "Midsommar",
+    "year": 2019,
+    "type": "movie",
+    "overview": "A grieving woman joins her boyfriend at a Swedish festival that grows steadily less welcoming.",
+    "genres": [
+      "Horror",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0061",
+    "title": "The Witch",
+    "year": 2015,
+    "type": "movie",
+    "overview": "A Puritan family exiled to the forest edge turns on itself as their crops and children fail.",
+    "genres": [
+      "Horror",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0062",
+    "title": "The Wire",
+    "year": 2002,
+    "type": "tvShow",
+    "overview": "Police and dealers in Baltimore are shown as parts of the same failing institutions.",
+    "genres": [
+      "Drama",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0063",
+    "title": "The Sopranos",
+    "year": 1999,
+    "type": "tvShow",
+    "overview": "A New Jersey mob boss manages a crime family and panic attacks with equal difficulty.",
+    "genres": [
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0064",
+    "title": "Mad Men",
+    "year": 2007,
+    "type": "tvShow",
+    "overview": "An advertising executive with a borrowed identity navigates the 1960s and his own invention.",
+    "genres": [
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0065",
+    "title": "Six Feet Under",
+    "year": 2001,
+    "type": "tvShow",
+    "overview": "A family running a funeral home confronts mortality as a daily business.",
+    "genres": [
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0066",
+    "title": "Twin Peaks",
+    "year": 1990,
+    "type": "tvShow",
+    "overview": "An FBI agent investigating a murder finds a town whose strangeness exceeds the crime.",
+    "genres": [
+      "Drama",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0067",
+    "title": "Atlanta",
+    "year": 2016,
+    "type": "tvShow",
+    "overview": "A manager and his rapper cousin move through a city that keeps turning surreal.",
+    "genres": [
+      "Comedy",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0068",
+    "title": "Barry",
+    "year": 2018,
+    "type": "tvShow",
+    "overview": "A hitman who wanders into an acting class tries to become someone else entirely.",
+    "genres": [
+      "Comedy",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0069",
+    "title": "Succession",
+    "year": 2018,
+    "type": "tvShow",
+    "overview": "The children of a media magnate compete for a succession their father will not concede.",
+    "genres": [
+      "Drama",
+      "Comedy"
+    ]
+  },
+  {
+    "externalId": "wr-0070",
+    "title": "The Bear",
+    "year": 2022,
+    "type": "tvShow",
+    "overview": "A fine-dining chef inherits his brother's chaotic sandwich shop and its staff.",
+    "genres": [
+      "Drama",
+      "Comedy"
+    ]
+  },
+  {
+    "externalId": "wr-0071",
+    "title": "Better Things",
+    "year": 2016,
+    "type": "tvShow",
+    "overview": "A working actor raises three daughters alone with no illusions about any of it.",
+    "genres": [
+      "Comedy",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0072",
+    "title": "Derry Girls",
+    "year": 2018,
+    "type": "tvShow",
+    "overview": "Teenagers navigate adolescence in Northern Ireland during the Troubles.",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "externalId": "wr-0073",
+    "title": "The Good Place",
+    "year": 2016,
+    "type": "tvShow",
+    "overview": "A woman who does not belong in the afterlife she landed in tries to earn her way in.",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "externalId": "wr-0074",
+    "title": "Parks and Recreation",
+    "year": 2009,
+    "type": "tvShow",
+    "overview": "A relentlessly optimistic bureaucrat tries to improve a small Indiana town.",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "externalId": "wr-0075",
+    "title": "Community",
+    "year": 2009,
+    "type": "tvShow",
+    "overview": "A study group at a community college keeps escaping into elaborate genre parodies.",
+    "genres": [
+      "Comedy"
+    ]
+  },
+  {
+    "externalId": "wr-0076",
+    "title": "What We Do in the Shadows",
+    "year": 2019,
+    "type": "tvShow",
+    "overview": "Vampire flatmates on Staten Island fail at world domination and household chores alike.",
+    "genres": [
+      "Comedy",
+      "Horror"
+    ]
+  },
+  {
+    "externalId": "wr-0077",
+    "title": "Chernobyl",
+    "year": 2019,
+    "type": "tvShow",
+    "overview": "The reactor disaster and the official machinery that tried to contain the truth.",
+    "genres": [
+      "Drama",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0078",
+    "title": "Band of Brothers",
+    "year": 2001,
+    "type": "tvShow",
+    "overview": "A parachute infantry company is followed from training through the end of the war.",
+    "genres": [
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0079",
+    "title": "True Detective",
+    "year": 2014,
+    "type": "tvShow",
+    "overview": "Two detectives revisit a case that has been shaping both of them for seventeen years.",
+    "genres": [
+      "Thriller",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0080",
+    "title": "Dark",
+    "year": 2017,
+    "type": "tvShow",
+    "overview": "Four families in a German town are entangled with disappearances across three generations.",
+    "genres": [
+      "Sci-Fi",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0081",
+    "title": "The Leftovers",
+    "year": 2014,
+    "type": "tvShow",
+    "overview": "Three years after two percent of the world vanished, the remainder try to live with it.",
+    "genres": [
+      "Drama",
+      "Sci-Fi"
+    ]
+  },
+  {
+    "externalId": "wr-0082",
+    "title": "Halt and Catch Fire",
+    "year": 2014,
+    "type": "tvShow",
+    "overview": "Engineers and visionaries chase each wave of the personal computing era.",
+    "genres": [
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0083",
+    "title": "Person of Interest",
+    "year": 2011,
+    "type": "tvShow",
+    "overview": "A machine that predicts violent crime gives two men a name and no context.",
+    "genres": [
+      "Sci-Fi",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0084",
+    "title": "Black Mirror",
+    "year": 2011,
+    "type": "tvShow",
+    "overview": "Standalone stories about technology arriving slightly ahead of our judgement.",
+    "genres": [
+      "Sci-Fi",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0085",
+    "title": "Station Eleven",
+    "year": 2021,
+    "type": "tvShow",
+    "overview": "A travelling troupe performs Shakespeare in the decades after a collapse.",
+    "genres": [
+      "Drama",
+      "Sci-Fi"
+    ]
+  },
+  {
+    "externalId": "wr-0086",
+    "title": "Andor",
+    "year": 2022,
+    "type": "tvShow",
+    "overview": "A thief drifts into an insurgency and discovers what rebellion actually costs.",
+    "genres": [
+      "Sci-Fi",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0087",
+    "title": "The Expanse",
+    "year": 2015,
+    "type": "tvShow",
+    "overview": "A missing-person case exposes a conspiracy spanning Earth, Mars, and the Belt.",
+    "genres": [
+      "Sci-Fi",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0088",
+    "title": "Avatar: The Last Airbender",
+    "year": 2005,
+    "type": "tvShow",
+    "overview": "A boy who can bend all four elements is woken after a century to end a war.",
+    "genres": [
+      "Animation",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0089",
+    "title": "Blue Eye Samurai",
+    "year": 2023,
+    "type": "tvShow",
+    "overview": "A mixed-race swordmaster in Edo Japan hunts the four men who could be her father.",
+    "genres": [
+      "Animation",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0090",
+    "title": "Over the Garden Wall",
+    "year": 2014,
+    "type": "tvShow",
+    "overview": "Two half-brothers lost in an autumn wood try to find their way home.",
+    "genres": [
+      "Animation",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0091",
+    "title": "Our Planet",
+    "year": 2019,
+    "type": "tvShow",
+    "overview": "Natural history across the world's habitats and the pressure each is under.",
+    "genres": [
+      "Documentary"
+    ]
+  },
+  {
+    "externalId": "wr-0092",
+    "title": "The Last Dance",
+    "year": 2020,
+    "type": "tvShow",
+    "overview": "The final championship season of a basketball dynasty, told from inside it.",
+    "genres": [
+      "Documentary"
+    ]
+  },
+  {
+    "externalId": "wr-0093",
+    "title": "Making a Murderer",
+    "year": 2015,
+    "type": "tvShow",
+    "overview": "A man exonerated by DNA evidence is charged again, and the case is followed for years.",
+    "genres": [
+      "Documentary",
+      "Thriller"
+    ]
+  },
+  {
+    "externalId": "wr-0094",
+    "title": "Normal People",
+    "year": 2020,
+    "type": "tvShow",
+    "overview": "Two Irish students circle each other through school, university, and the years after.",
+    "genres": [
+      "Romance",
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0095",
+    "title": "I May Destroy You",
+    "year": 2020,
+    "type": "tvShow",
+    "overview": "A writer reassembles the night of her assault and what consent actually meant.",
+    "genres": [
+      "Drama"
+    ]
+  },
+  {
+    "externalId": "wr-0096",
+    "title": "Fargo",
+    "year": 2014,
+    "type": "tvShow",
+    "overview": "A new crime, a new cast, and the same cold moral arithmetic each season.",
+    "genres": [
+      "Thriller",
+      "Drama"
+    ]
+  }
+]
