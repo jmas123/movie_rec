@@ -382,3 +382,112 @@ struct TMDBMoodDiscoveryTests {
         #expect(await service.resolveKeywordId("neo-noir") == nil)
     }
 }
+
+// MARK: - Network manners
+
+@Suite("TMDBMediaService — network manners")
+struct TMDBNetworkMannersTests {
+
+    @MainActor
+    @Test("Concurrent identical requests share one round trip")
+    func requestsCoalesce() async throws {
+        // Building a cold pool asks for overlapping pages within milliseconds.
+        // Without coalescing every caller is a separate request against a
+        // rate-limited API.
+        let log = RequestLog()
+        let service = makeTMDBService(log: log, cache: makeDisabledCache()) { request in
+            guard request.url?.path.hasSuffix("/discover/movie") == true else {
+                return .status(404, Data(TMDBFixtures.notFound.utf8))
+            }
+            return .ok(Data(TMDBFixtures.discoverMovies.utf8))
+        }
+
+        let component = MoodQueryComponent(
+            basis: .genres(ids: [80], names: ["Crime"]), minimumVotes: nil
+        )
+
+        async let a = service.discover(type: .movie, component: component, page: 1)
+        async let b = service.discover(type: .movie, component: component, page: 1)
+        async let c = service.discover(type: .movie, component: component, page: 1)
+        let results = try await [a, b, c]
+
+        #expect(results.allSatisfy { !$0.isEmpty } == true)
+        #expect(log.count(inQuery: "with_genres") == 1,
+                "\(log.count(inQuery: "with_genres")) round trips for one URL")
+    }
+
+    @MainActor
+    @Test("Different URLs are not coalesced together")
+    func distinctRequestsAreNotMerged() async throws {
+        let log = RequestLog()
+        let service = makeTMDBService(log: log, cache: makeDisabledCache())
+
+        let crime = MoodQueryComponent(basis: .genres(ids: [80], names: ["Crime"]), minimumVotes: nil)
+        let horror = MoodQueryComponent(basis: .genres(ids: [27], names: ["Horror"]), minimumVotes: nil)
+
+        _ = try await service.discover(type: .movie, component: crime, page: 1)
+        _ = try await service.discover(type: .movie, component: horror, page: 1)
+
+        #expect(log.count(inQuery: "with_genres=80") == 1)
+        #expect(log.count(inQuery: "with_genres=27") == 1)
+    }
+
+    @MainActor
+    @Test("A failure is not retried in a loop")
+    func failuresDoNotStorm() async {
+        // Retrying a rate-limited or failing endpoint is how a client turns one
+        // outage into several. A failed call falls back to cache instead.
+        let log = RequestLog()
+        let service = makeTMDBService(log: log, cache: makeDisabledCache()) { _ in
+            .status(500, Data("{}".utf8))
+        }
+
+        _ = try? await service.popularTitles(type: .movie, page: 1)
+        #expect(log.count == 1, "\(log.count) attempts for one failing request")
+    }
+
+    @MainActor
+    @Test("A warm pool is not rebuilt on launch")
+    func warmPoolIsNotRefetched() async {
+        // The pool has a weekly TTL. Re-paging it on every launch would be ~150
+        // requests for data that has not changed.
+        let cache = makeTemporaryCache()
+        let first = makeFullStubSource()
+        await CandidatePoolBuilder(source: first, cache: cache).refresh()
+        #expect(first.requests.count > 0)
+
+        let second = makeFullStubSource()
+        _ = await CandidatePoolBuilder(source: second, cache: cache).pool()
+        #expect(second.requests.isEmpty, "a warm pool was rebuilt")
+    }
+}
+
+// MARK: - Scale
+
+@Suite("Discover — scale")
+@MainActor
+struct DiscoverScaleTests {
+
+    @Test("A full-pool request completes in a sane time")
+    func fullPoolRequestIsFast() async throws {
+        // Not a hard timing gate — those are flaky in CI. A very loose ceiling,
+        // so a genuine order-of-magnitude regression (a profile rebuilt per
+        // candidate, say) fails rather than merely feeling slow.
+        let library = try makeRankedLibrary(movies: 60, shows: 40)
+        let source = makeFullStubSource(pagesPerComponent: 5, perPage: 20)
+        let builder = CandidatePoolBuilder(source: source, cache: makeDisabledCache())
+        await builder.refresh()
+
+        let vm = RecommendationViewModel(library: library, poolBuilder: builder)
+        _ = await vm.recommendations(type: .movie, mood: .crime)
+
+        let start = Date()
+        for mood in Mood.allCases {
+            _ = await vm.recommendations(type: .movie, mood: mood)
+        }
+        let elapsed = Date().timeIntervalSince(start)
+
+        #expect(vm.profileRebuilds == 1, "the profile was rebuilt per request")
+        #expect(elapsed < 5.0, "ten mood requests took \(elapsed)s")
+    }
+}

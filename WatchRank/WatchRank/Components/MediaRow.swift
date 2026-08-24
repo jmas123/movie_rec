@@ -3,25 +3,33 @@
 //  WatchRank
 //
 //  Horizontal list row used in Search, Ranking, and Profile: a small gradient
-//  poster, the title with year and type, and an optional trailing score badge.
+//  poster, the title with year and type, and a trailing badge saying where the
+//  title stands.
+//
+//  The badge is driven by `ScoreDisplay`, not by a bare `Double?`. A row whose
+//  bucket has not yet earned a number still has something true to say — "#2" in
+//  its sentiment — and rule 6 asks for exactly that. Passing an optional score
+//  could only express "number" or "silence", which made a ranked title in a
+//  small bucket indistinguishable from an unwatched one.
 //
 
 import SwiftUI
 
 // MARK: - MediaRow
 
-/// A single row in a list. The trailing `score` is shown as a rounded badge
-/// only when present — unwatched items (search results, the want-to-watch
-/// queue) simply omit it.
+/// A single row in a list. The trailing badge follows `display`: a score pill
+/// once the bucket has earned one, a quieter rank pill while it has not, and
+/// nothing at all for unwatched items (search results, the want-to-watch
+/// queue).
 struct MediaRow: View {
 
     let title: String
     let year: Int
     let type: MediaType
-    var score: Double?
+    var display: ScoreDisplay = .none
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Spacing.md) {
             PosterPlaceholder(title: title)
                 .frame(width: 48, height: 72)
 
@@ -36,39 +44,44 @@ struct MediaRow: View {
 
             Spacer(minLength: 8)
 
-            if let score {
-                ScoreBadge(score: score)
-            }
+            badge
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, Spacing.xs)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
     }
 
+    // MARK: Badge
+
+    @ViewBuilder
+    private var badge: some View {
+        switch display {
+        case .score(let value):
+            ScoreBadge(score: value)
+        case .rank(let position, _):
+            RankBadge(position: position)
+        case .sentimentOnly, .none:
+            EmptyView()
+        }
+    }
+
     private var accessibilityLabel: String {
         var label = "\(title), \(String(year)), \(type.displayName)"
-        if let score {
-            label += ", scored \(Self.scoreFormatter.string(from: score as NSNumber) ?? "")"
+        if let description = display.accessibilityDescription {
+            label += ", \(description)"
         }
         return label
     }
-
-    static let scoreFormatter: NumberFormatter = {
-        let formatter = NumberFormatter()
-        formatter.minimumFractionDigits = 1
-        formatter.maximumFractionDigits = 1
-        return formatter
-    }()
 }
 
 // MARK: - ScoreBadge
 
-/// The rounded 0–10 score pill shown on watched rows.
+/// The rounded 0–10 score pill shown once a bucket has earned a number.
 private struct ScoreBadge: View {
     let score: Double
 
     var body: some View {
-        Text(MediaRow.scoreFormatter.string(from: score as NSNumber) ?? "—")
+        Text(ScoreDisplay.formatter.string(from: score as NSNumber) ?? "—")
             .font(.callout.weight(.bold).monospacedDigit())
             .foregroundStyle(.white)
             .padding(.horizontal, 10)
@@ -77,19 +90,43 @@ private struct ScoreBadge: View {
     }
 }
 
+// MARK: - RankBadge
+
+/// The position pill shown while a score is still withheld. Deliberately
+/// quieter than `ScoreBadge` — an outline rather than a filled capsule — so the
+/// two are never confused at a glance: "#2" is a place in a short list, "8.4" is
+/// a rating the app stands behind.
+private struct RankBadge: View {
+    let position: Int
+
+    var body: some View {
+        Text("#\(position)")
+            .font(.callout.weight(.semibold).monospacedDigit())
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .overlay(
+                Capsule().strokeBorder(Color.secondary.opacity(0.35), lineWidth: 1)
+            )
+    }
+}
+
 // MARK: - Convenience
 
 extension MediaRow {
-    /// Builds a row straight from a model object, surfacing its score when set.
+    /// Builds an unadorned row from a model object — no badge. Used where the
+    /// row is not about ranking (search results before the library is
+    /// consulted, the want-to-watch queue).
     init(item: MediaItem) {
-        self.init(title: item.title, year: item.year, type: item.type, score: item.score)
+        self.init(title: item.title, year: item.year, type: item.type)
     }
 
-    /// Score visibility is a library-level decision (a bucket must hold
-    /// `MediaLibraryViewModel.minimumBucketSizeForScore` items), so screens
-    /// pass the already-resolved value rather than reading `item.score`.
-    init(item: MediaItem, score: Double?) {
-        self.init(title: item.title, year: item.year, type: item.type, score: score)
+    /// Score visibility is a library-level decision (it depends on the size of a
+    /// bucket the row cannot see), so screens pass the resolved
+    /// `MediaLibraryViewModel.scoreDisplay(for:)` rather than reading
+    /// `item.score` themselves.
+    init(item: MediaItem, display: ScoreDisplay) {
+        self.init(title: item.title, year: item.year, type: item.type, display: display)
     }
 }
 
@@ -97,12 +134,21 @@ extension MediaRow {
 
 #Preview("With score", traits: .sizeThatFitsLayout) {
     List {
-        MediaRow(title: "Parasite", year: 2019, type: .movie, score: 9.2)
-        MediaRow(title: "Breaking Bad", year: 2008, type: .tvShow, score: 8.7)
+        MediaRow(title: "Parasite", year: 2019, type: .movie, display: .score(9.2))
+        MediaRow(title: "Breaking Bad", year: 2008, type: .tvShow, display: .score(8.7))
     }
 }
 
-#Preview("Without score", traits: .sizeThatFitsLayout) {
+#Preview("Score withheld", traits: .sizeThatFitsLayout) {
+    List {
+        MediaRow(title: "Parasite", year: 2019, type: .movie,
+                 display: .rank(position: 1, sentiment: .liked))
+        MediaRow(title: "Arrival", year: 2016, type: .movie,
+                 display: .rank(position: 2, sentiment: .liked))
+    }
+}
+
+#Preview("No badge", traits: .sizeThatFitsLayout) {
     List {
         MediaRow(title: "Dune", year: 2021, type: .movie)
         MediaRow(title: "Spider-Man: Into the Spider-Verse", year: 2018, type: .movie)

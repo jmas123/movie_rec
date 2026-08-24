@@ -29,6 +29,7 @@ struct CompareView: View {
                     comparison(pair)
                 } else {
                     ProgressView()
+                        .accessibilityLabel("Preparing the next comparison")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
@@ -73,7 +74,7 @@ struct CompareView: View {
                 .font(.title2.weight(.bold))
                 .multilineTextAlignment(.center)
 
-            HStack(alignment: .top, spacing: 16) {
+            HStack(alignment: .top, spacing: Spacing.lg) {
                 CompareCard(item: pair.newItem, isNew: true) {
                     viewModel.choose(pair.newItem)
                 }
@@ -95,7 +96,7 @@ struct CompareView: View {
     }
 
     private var progressHeader: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Spacing.sm) {
             Text(viewModel.progressText)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -143,10 +144,10 @@ private struct CompareCard: View {
                     Text("NEW")
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, Spacing.xs)
                         .background(Color.accentColor, in: Capsule())
-                        .padding(8)
+                        .padding(Spacing.sm)
                 }
             }
         }

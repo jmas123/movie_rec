@@ -108,7 +108,7 @@ enum PredictionDisplay: Equatable {
     var accessibilityDescription: String {
         switch self {
         case .score(let value):
-            let formatted = MediaRow.scoreFormatter.string(from: value as NSNumber) ?? "—"
+            let formatted = ScoreDisplay.formatter.string(from: value as NSNumber) ?? "—"
             return "predicted \(formatted) out of 10"
         case .band(let band):
             return "predicted: \(band.label)"

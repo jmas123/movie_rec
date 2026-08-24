@@ -92,6 +92,7 @@ struct DiscoverView: View {
                 HStack {
                     Spacer()
                     ProgressView()
+                        .accessibilityLabel("Finding recommendations")
                     Spacer()
                 }
                 .padding(.vertical, Spacing.section)
@@ -104,9 +105,21 @@ struct DiscoverView: View {
                         NavigationLink {
                             MediaDetailView(item: recommendation.item)
                         } label: {
-                            RecommendationRow(recommendation: recommendation) {
-                                library.addToWantToWatch(recommendation.item)
-                            }
+                            RecommendationRow(
+                                recommendation: recommendation,
+                                onQueue: {
+                                    // The guess is frozen here so the app can be
+                                    // graded on what it actually said.
+                                    library.addToWantToWatch(
+                                        recommendation.item,
+                                        predicted: recommendation.predicted.displayValue
+                                    )
+                                },
+                                onDismiss: {
+                                    library.dismiss(recommendation.item)
+                                    Task { await load() }
+                                }
+                            )
                         }
                     }
                 } header: {

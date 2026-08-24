@@ -19,7 +19,7 @@ struct SentimentPicker: View {
     @Binding var selection: Sentiment?
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: Spacing.md) {
             ForEach(Sentiment.allCases) { sentiment in
                 Button {
                     selection = (selection == sentiment) ? nil : sentiment
@@ -53,7 +53,7 @@ private struct SentimentButtonLabel: View {
     let isSelected: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Spacing.md) {
             Image(systemName: symbolName)
                 .font(.title3)
                 .accessibilityHidden(true)
@@ -67,7 +67,7 @@ private struct SentimentButtonLabel: View {
             }
         }
         .foregroundStyle(isSelected ? .white : Color.primary)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, Spacing.lg)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(

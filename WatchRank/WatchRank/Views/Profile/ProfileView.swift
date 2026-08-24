@@ -15,6 +15,9 @@ import SwiftUI
 struct ProfileView: View {
 
     @Environment(MediaLibraryViewModel.self) private var library
+    @Environment(SessionViewModel.self) private var session
+
+    @State private var showSignIn = false
 
     /// Sends the user to Search from the empty state. Optional so previews and
     /// tests can build the screen without wiring up navigation.
@@ -39,6 +42,15 @@ struct ProfileView: View {
                 }
             }
             .navigationTitle("Profile")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink { SettingsView() } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("Settings")
+                }
+            }
+            .sheet(isPresented: $showSignIn) { SignInView() }
         }
     }
 
@@ -56,25 +68,141 @@ struct ProfileView: View {
             if !stats.topFive.isEmpty {
                 Section("Top 5 of All Time") {
                     ForEach(stats.topFive, id: \.id) { item in
-                        MediaRow(item: item, score: library.displayScore(for: item))
+                        MediaRow(item: item, display: library.scoreDisplay(for: item))
                     }
                 }
             }
 
-            if !stats.topGenres.isEmpty {
-                Section("Top Genres") {
-                    ForEach(stats.topGenres, id: \.genre) { entry in
-                        LabeledContent(entry.genre, value: "\(entry.count)")
+            accountSection
+
+            tasteSection
+
+            accuracySection
+        }
+    }
+
+    // MARK: Account
+
+    /// The one social entry point in this phase. Everything else on Profile —
+    /// and everywhere else in the app — works identically signed out.
+    @ViewBuilder
+    private var accountSection: some View {
+        if session.isAvailable {
+            Section {
+                if let profile = session.profile {
+                    LabeledContent("Signed in as", value: "@\(profile.handle)")
+                    Button("Sign Out", role: .destructive) {
+                        Task { await session.signOut() }
                     }
+                } else {
+                    Button("Sign In or Create Account") { showSignIn = true }
                 }
+            } header: {
+                Text("Account")
+            } footer: {
+                Text("Your rankings stay on this device. An account only adds "
+                     + "the social features.")
             }
+        }
+    }
+
+    // MARK: Taste
+
+    /// Replaces the old Top Genres list.
+    ///
+    /// That list ranked by *count*, which answers "what do you watch most" — a
+    /// duller question the user can already answer, and one that would now
+    /// contradict the taste screen's effect-ranked claims. Two lists disagreeing
+    /// about the same library is worse than one fewer list.
+    @ViewBuilder
+    private var tasteSection: some View {
+        Section {
+            NavigationLink {
+                TasteAnalysisView(onBrowse: onBrowse ?? {})
+            } label: {
+                Label("Your taste", systemImage: "chart.pie")
+            }
+        } footer: {
+            Text("What you gravitate toward, what you actually rate highly, and "
+                 + "where those disagree.")
+        }
+    }
+
+    // MARK: Prediction accuracy
+
+    /// One honest line about whether the recommender is working.
+    ///
+    /// It refuses to speak when the rank correlation is not significant.
+    /// "Predictions land within 1.2 points" *sounds* like a result, and is one
+    /// only if the ordering holds up — quoting the error alone would dress a
+    /// number as a finding.
+    @ViewBuilder
+    private var accuracySection: some View {
+        if let accuracy, let headline = accuracy.headline {
+            Section {
+                Text(headline)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                if accuracy.isSignificant {
+                    LabeledContent(
+                        "Rank agreement",
+                        value: accuracy.spearman.map { String(format: "%.2f", $0) } ?? "—"
+                    )
+                }
+                if !matched.isEmpty {
+                    LabeledContent("Graded guesses", value: "\(matched.count)")
+                }
+            } header: {
+                Text("Predictions")
+            } footer: {
+                Text("Measured by holding each ranked title out and predicting it "
+                     + "from the rest.")
+            }
+        }
+    }
+
+    private var matched: [(predicted: Double, actual: Double)] {
+        library.matchedPredictions
+    }
+
+    /// Cached against the library revision: cross-validation costs one profile
+    /// build per watched title, which is far too much for a `body` evaluation.
+    private var accuracy: PredictionAccuracy? {
+        ProfileView.accuracyCache.value(for: library.revision) {
+            RecommendationEngine().accuracy(for: library.allWatched)
         }
     }
 
     private var averageText: String {
         guard let average = stats.averageScore else { return "—" }
-        return MediaRow.scoreFormatter.string(from: average as NSNumber) ?? "—"
+        return ScoreDisplay.formatter.string(from: average as NSNumber) ?? "—"
     }
+}
+
+// MARK: - Accuracy cache
+
+/// A one-slot memo keyed on the library revision.
+///
+/// `ProfileStats` is cheap enough to rebuild on every `body` evaluation;
+/// cross-validation is emphatically not — it is O(library) profile builds, and
+/// SwiftUI may evaluate a body many times per frame.
+@MainActor
+final class RevisionCache<Value> {
+    private var revision: Int?
+    private var stored: Value?
+
+    func value(for revision: Int, build: () -> Value) -> Value {
+        if self.revision == revision, let stored { return stored }
+        let fresh = build()
+        self.revision = revision
+        self.stored = fresh
+        return fresh
+    }
+}
+
+extension ProfileView {
+    static let accuracyCache = RevisionCache<PredictionAccuracy>()
 }
 
 // MARK: - ProfileStats
@@ -90,9 +218,6 @@ struct ProfileStats {
     let averageScore: Double?
     /// Highest-scored items, best first, up to five.
     let topFive: [MediaItem]
-    /// Most frequent genres, up to three, ties broken alphabetically.
-    let topGenres: [(genre: String, count: Int)]
-
     init(watched items: [MediaItem]) {
         totalWatched = items.count
         movieCount = items.filter { $0.type == .movie }.count
@@ -106,18 +231,6 @@ struct ProfileStats {
             .prefix(5)
             .map { $0 }
 
-        var counts: [String: Int] = [:]
-        for item in items {
-            for genre in item.genres {
-                counts[genre, default: 0] += 1
-            }
-        }
-        topGenres = counts
-            .sorted { lhs, rhs in
-                lhs.value != rhs.value ? lhs.value > rhs.value : lhs.key < rhs.key
-            }
-            .prefix(3)
-            .map { (genre: $0.key, count: $0.value) }
     }
 
     var isEmpty: Bool { totalWatched == 0 }

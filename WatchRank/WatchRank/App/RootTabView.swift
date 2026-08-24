@@ -30,13 +30,27 @@ struct RootTabView: View {
     /// not offered.
     var recommender: RecommendationViewModel?
 
+    /// Social services, absent on a build with no Supabase credentials.
+    var feedService: FeedService?
+    var socialService: SocialService?
+    var rankingFeedService: RankingFeedService?
+
     @State private var selection: Tab = .home
 
     var body: some View {
         TabView(selection: $selection) {
-            HomeView(service: service)
-                .tabItem { Label("Home", systemImage: "house") }
-                .tag(Tab.home)
+            // Home and the feed share this slot: a sixth tab becomes a "More"
+            // list on iOS, which is where features go to be forgotten. See
+            // `HomeTabView`.
+            HomeTabView(
+                service: service,
+                feedService: feedService,
+                socialService: socialService,
+                onFindPeople: { selection = .search },
+                onSignIn: { selection = .profile }
+            )
+            .tabItem { Label("Home", systemImage: "house") }
+            .tag(Tab.home)
 
             SearchView(service: service, isActive: selection == .search)
                 .tabItem { Label("Search", systemImage: "magnifyingglass") }

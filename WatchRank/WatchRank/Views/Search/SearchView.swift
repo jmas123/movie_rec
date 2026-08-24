@@ -69,6 +69,7 @@ struct SearchView: View {
         case .searching:
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityLabel("Searching the catalog")
 
         case .results:
             resultsList
@@ -102,7 +103,7 @@ struct SearchView: View {
             NavigationLink {
                 MediaDetailView(item: item)
             } label: {
-                MediaRow(item: item, score: library.displayScore(for: item))
+                MediaRow(item: item, display: library.scoreDisplay(for: item))
             }
         }
         .listStyle(.plain)

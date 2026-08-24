@@ -71,3 +71,4 @@ __pycache__/
 
 # Xcode build output / derived data from local xcodebuild runs
 WatchRank/build/
+.library-backup-*/

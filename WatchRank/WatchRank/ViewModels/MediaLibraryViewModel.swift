@@ -65,6 +65,15 @@ final class MediaLibraryViewModel {
     @ObservationIgnored
     private var session: ComparisonSession?
 
+    /// Buckets mutated since the last `save()`.
+    ///
+    /// Collected here and flushed in one place rather than enqueued at each
+    /// call site. Remembering to act at every bucket-mutating site is exactly
+    /// what the vacated-bucket bug got wrong twice, so the same discipline
+    /// applies: mark in the shared helpers, flush centrally.
+    @ObservationIgnored
+    private var dirtyBuckets: Set<String> = []
+
     // MARK: - Init
 
     init(modelContext: ModelContext) {
@@ -181,6 +190,21 @@ final class MediaLibraryViewModel {
         return item.score
     }
 
+    /// What a row may say about `item`: a number once the bucket has earned
+    /// one, otherwise the position rule 6 asks for in its place, otherwise the
+    /// sentiment alone.
+    ///
+    /// The three cases are the same ladder `MediaDetailView` walks, hoisted
+    /// here so `MediaRow` can walk it too. Screens ask for this rather than
+    /// reading `item.score` directly — score *visibility* is a library-level
+    /// decision, because it depends on the size of a bucket a row cannot see.
+    func scoreDisplay(for item: MediaItem) -> ScoreDisplay {
+        if let score = displayScore(for: item) { return .score(score) }
+        guard let sentiment = item.sentiment, item.watchedStatus == .watched else { return .none }
+        guard isRanked(item), let rank = item.rankInBucket else { return .sentimentOnly(sentiment) }
+        return .rank(position: rank + 1, sentiment: sentiment)
+    }
+
     /// How many more items this item's bucket needs before its score appears.
     /// Zero once the score is visible.
     func itemsUntilScoreRevealed(for item: MediaItem) -> Int {
@@ -241,7 +265,79 @@ final class MediaLibraryViewModel {
         item.dateWatched = nil
 
         recomputeBucket(vacatedSentiment, type: item.type)
+        recordPost(item, kind: .wantToWatch)
         save()
+    }
+
+    /// Records the "wants to watch" act, which belongs to no bucket.
+    ///
+    /// Queuing is not a ranking, so it has no `(type, sentiment)` to publish —
+    /// but it is still something followers should see. Held separately and
+    /// drained alongside the buckets.
+    private func recordPost(_ item: MediaItem, kind: FeedPost.Kind) {
+        // A title with no id cannot be published, so there is nothing for a
+        // post to point at either.
+        guard item.externalId != nil else { return }
+        pendingPosts.append((itemID: item.id, kind: kind))
+    }
+
+    /// Acts the user has taken since the last drain, in order.
+    ///
+    /// **Deliberately not coalesced**, unlike the publish outbox. Publishing is
+    /// per *bucket* — five rankings rewrite one bucket and owe it one upsert —
+    /// but posting is per *act*, and five rankings are five things the user did.
+    /// Folding them together would silently drop four of them from every
+    /// follower's feed.
+    private(set) var pendingPosts: [(itemID: UUID, kind: FeedPost.Kind)] = []
+
+    func clearPendingPosts() { pendingPosts.removeAll() }
+
+    func item(withID id: UUID) -> MediaItem? {
+        allItems.first { $0.id == id }
+    }
+
+    /// Queues a title *and* records what the app guessed it would score.
+    ///
+    /// The guess is frozen here rather than re-derived later. Re-deriving it
+    /// would score the model against a profile that had since seen more of the
+    /// user's taste — including, eventually, this very title — which measures
+    /// nothing. Holding the app to what it said at the time is the whole point.
+    ///
+    /// An existing prediction is never overwritten: the first guess is the one
+    /// that gets graded.
+    func addToWantToWatch(_ item: MediaItem, predicted: Double?) {
+        addToWantToWatch(item)
+        guard let predicted, item.predictedScore == nil else { return }
+        item.predictedScore = predicted
+        item.predictedAt = .now
+        save()
+    }
+
+    /// "Not for me." Persisted, so the title stops being recommended.
+    ///
+    /// Deliberately not the same as marking it watched-and-disliked: the user
+    /// has not seen it, so it must never enter a ranking bucket or move a
+    /// score. It is a filter, not an opinion about quality.
+    func dismiss(_ item: MediaItem) {
+        insertIfNeeded(item)
+        item.dismissed = true
+        save()
+    }
+
+    func undismiss(_ item: MediaItem) {
+        item.dismissed = false
+        save()
+    }
+
+    /// Matched pairs the app has earned the right to be graded on: a guess it
+    /// recorded, and the score the user's own comparisons later produced.
+    var matchedPredictions: [(predicted: Double, actual: Double)] {
+        allItems.compactMap { item in
+            guard item.watchedStatus == .watched,
+                  let predicted = item.predictedScore,
+                  let actual = item.score else { return nil }
+            return (predicted: predicted, actual: actual)
+        }
     }
 
     /// Starts a ranking session for `item`. The returned array contains the
@@ -260,6 +356,13 @@ final class MediaLibraryViewModel {
         item.watchedStatus = .watched
         item.sentiment = sentiment
         item.dateWatched = .now
+
+        // The bucket the item is joining owes a publish however this call ends:
+        // the empty-bucket path below never recomputes anything, and the session
+        // path may be abandoned before `finalizeRanking` runs. Marking here
+        // covers both, and repeats coalesce.
+        markDirty(sentiment, type: item.type)
+        recordPost(item, kind: .ranked)
 
         // Re-rating into a *different* bucket leaves the old one one item
         // short. Reading the bucket after the reassignment above means `item`
@@ -414,6 +517,7 @@ final class MediaLibraryViewModel {
         let clamped = min(max(position, 0), fullBucket.count)
         fullBucket.insert(item, at: clamped)
         engine.recomputeScores(in: fullBucket, range: current.sentiment.scoreRange)
+        markDirty(current.sentiment, type: item.type)
 
         session = nil
         pendingComparison = nil
@@ -433,6 +537,7 @@ final class MediaLibraryViewModel {
         let midpoint = fullBucket.count / 2
         fullBucket.insert(item, at: midpoint)
         engine.recomputeScores(in: fullBucket, range: current.sentiment.scoreRange)
+        markDirty(current.sentiment, type: item.type)
 
         session = nil
         pendingComparison = nil
@@ -462,6 +567,7 @@ final class MediaLibraryViewModel {
         items.insert(contentsOf: moving, at: destination - countBeforeDestination)
 
         engine.recomputeScores(in: items, range: sentiment.scoreRange)
+        markDirty(sentiment, type: type)
         save()
     }
 
@@ -520,6 +626,62 @@ final class MediaLibraryViewModel {
             in: sortedBucket(for: sentiment, type: type),
             range: sentiment.scoreRange
         )
+        markDirty(sentiment, type: type)
+    }
+
+    /// Records that a bucket owes the server a publish.
+    ///
+    /// Safe to call for a bucket that is about to be recomputed or has just
+    /// been: the outbox row is keyed by bucket, so repeats coalesce.
+    private func markDirty(_ sentiment: Sentiment?, type: MediaType) {
+        guard let sentiment else { return }
+        dirtyBuckets.insert(PendingPublish.key(mediaType: type, sentiment: sentiment))
+    }
+
+    /// Turns the dirty set into outbox rows. Called from `save()`, so no
+    /// mutation path can persist without also recording what it owes.
+    private func flushDirtyBuckets() {
+        guard !dirtyBuckets.isEmpty else { return }
+        let keys = dirtyBuckets
+        dirtyBuckets.removeAll()
+
+        let existing = Set((try? modelContext.fetch(FetchDescriptor<PendingPublish>()))?
+            .map(\.key) ?? [])
+
+        for key in keys where !existing.contains(key) {
+            let parts = key.split(separator: "|")
+            guard parts.count == 2,
+                  let type = MediaType(rawValue: String(parts[0])),
+                  let sentiment = Sentiment(rawValue: String(parts[1])) else { continue }
+            modelContext.insert(PendingPublish(mediaType: type, sentiment: sentiment))
+        }
+    }
+
+    /// Buckets currently awaiting publication, oldest debt first.
+    var pendingPublishes: [PendingPublish] {
+        _ = revision
+        let descriptor = FetchDescriptor<PendingPublish>(
+            sortBy: [SortDescriptor(\.enqueuedAt)]
+        )
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    /// The full, current contents of a bucket, ready to send.
+    ///
+    /// Built here rather than in the sync engine because the bucket is a
+    /// library concept — and because a payload assembled from anything other
+    /// than the live bucket is the vacated-bucket bug again.
+    func publishPayload(mediaType: MediaType, sentiment: Sentiment) -> PublishPayload {
+        PublishPayload(
+            mediaType: mediaType,
+            sentiment: sentiment,
+            bucket: sortedBucket(for: sentiment, type: mediaType)
+        )
+    }
+
+    func clearPendingPublish(_ pending: PendingPublish) {
+        modelContext.delete(pending)
+        save()
     }
 
     private func insertIfNeeded(_ item: MediaItem) {
@@ -529,6 +691,7 @@ final class MediaLibraryViewModel {
     }
 
     private func save() {
+        flushDirtyBuckets()
         // SwiftData autosaves on context teardown, but explicit saves keep
         // tests and exports deterministic.
         try? modelContext.save()

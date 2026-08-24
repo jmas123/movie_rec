@@ -3,8 +3,8 @@
 Phase 11's remaining acceptance criterion is a manual smoke test. This is the
 list — what a person still has to check, and **why automation cannot do it.**
 
-Everything here has been verified to compile, and the suite is green (92 unit
-tests plus the UI flow tests). None of that tells you the app looks right,
+Everything here has been verified to compile, and the suite is green (463 unit
+tests as of 2026-08-23, plus the UI flow tests). None of that tells you the app looks right,
 sounds right under VoiceOver, or behaves correctly to a human. Those are
 different claims, and only the first has been established.
 
@@ -117,7 +117,8 @@ Named because the suite genuinely does not cover them.
       then swipe the modal away mid-comparison. The title should still end up
       with a sensible score, not sit unranked or scoreless. Tests always drive
       comparison sessions to completion, so this path is unvisited.
-- [ ] **Drag to reorder** on the Ranking screen's All tab. Scores should
+- [ ] **Drag to reorder** on the Ranking screen's Movies or TV tab (the All
+      tab interleaves two rankings, so it offers no Edit button). Scores should
       recompute immediately and stay inside the bucket's band.
 - [ ] **Cross-bucket drag is blocked** — you should not be able to drag an item
       from one sentiment section into another.
@@ -207,3 +208,158 @@ read exactly like code regressions — dead simulators, apps that "fail to
 launch", elements that never appear — and it cost several hours of misdiagnosis
 on 2026-08-21. One unchanged UI test gave PASS, FAIL, FAIL on three consecutive
 runs purely from load.
+
+---
+
+## Journey 6 — Discover (v1.1)
+
+Added in Phase 18. Assumes a build with a TMDB token; without one the Discover
+tab is deliberately absent.
+
+### 6a. Cold start
+
+1. Fresh install, no ranked titles. Open **Discover**.
+2. Pick Movies, tap any mood.
+3. **Expect:** an empty state naming the exact shortfall — "Rank 10 more titles
+   and we can start predicting…" — with a CTA into Search. Not a spinner, not an
+   empty list.
+4. Rank fewer than 3 titles of one type, then ask for that type.
+   **Expect:** the copy names *that type* ("2 more shows"), because the
+   baselines are per-type and a film library says nothing about television.
+
+### 6b. Recommendations
+
+1. With >= 10 ranked titles and >= 3 of the chosen type, pick a mood.
+2. **Expect:** up to 20 rows, each with a poster, a rationale line ("Because you
+   like ..."), and an **outlined** predicted badge.
+3. **Check the badge is not mistakable for a real score.** Put Discover and
+   Ranking side by side: the earned score is a filled pill, the prediction is
+   outlined and labelled "predicted".
+4. Switch moods. **Expect:** re-ranks with no visible hang, and the top of one
+   mood should differ from another.
+
+### 6c. Feedback loop
+
+1. Swipe a row -> **Want to Watch**. The row shows "In your list".
+2. Swipe another -> **Not for me**. It disappears.
+3. Switch to every other mood. **Expect:** the dismissed title never reappears.
+4. Mark a queued title watched and rank it.
+5. Open **Profile**. **Expect:** a Predictions section once enough titles are
+   ranked — and it should say "Not enough ranked titles yet" when the rank
+   correlation is not significant, rather than quoting an error figure.
+
+### 6d. Detail screen prediction
+
+1. Tap any title you have **not** watched.
+2. **Expect:** a predicted score in an outlined box, quieter than the earned
+   score on a watched title, with "Predicted score" beneath it — or a
+   qualitative band when confidence is low.
+3. Tap a title you **have** watched. **Expect:** the real score, and **no**
+   prediction anywhere.
+
+### 6e. Airplane mode
+
+Turn the network off and walk every screen.
+
+1. **Discover, pool already built:** results still appear, from cache.
+2. **Discover, pool never built:** an offline empty state that says so and
+   suggests pull-to-refresh. Never an endless spinner.
+3. **Detail:** the prediction still renders — it is computed locally — though
+   less confidently, because the feature fetch cannot run.
+4. **Search:** degrades to cached results with no crash.
+5. **Home, Ranking, Profile, Compare:** fully functional. These have never
+   needed the network and must not start now.
+
+### 6f. Accessibility
+
+1. VoiceOver: pick type -> pick mood -> add to queue, unaided.
+2. A recommendation row must read **"predicted 8.2 out of 10"** — never a bare
+   number, which is indistinguishable from an earned score.
+3. Mood chips must announce their name and selected state. They are the primary
+   control on the screen and must never be symbol-only.
+4. Posters must be silent. They are decorative and the row already names the
+   title.
+5. Largest accessibility text size: the mood chip grid is what breaks first.
+
+---
+
+## Journey 7 — Social (v2.0)
+
+Added 2026-08-23. Assumes a build with Supabase configured; without it the
+social surfaces are absent by design and every screen below should simply not
+appear — which is itself worth confirming once.
+
+> **Read `GAP-AUDIT.md` first.** It records that sign-up may be unreachable on a
+> fresh install. If you cannot create an account, that is the known finding, not
+> a new one — stop and fix that before running the rest of this journey.
+
+### 7a. Signed out is a complete app
+
+The rule the whole architecture rests on: everything that worked in v1.0 still
+works with no account.
+
+1. Fresh install, do not sign in. Rank five films end to end.
+2. **Expect:** Home, Ranking, Search, Compare, Profile and Discover all behave
+   exactly as in Journeys 1–6. No sign-in wall, no disabled controls, no empty
+   state that reads as an error.
+3. The Home tab's Yours/Following switcher must be **absent**, not present and
+   empty — offering a half with nothing in it advertises the feature as broken
+   rather than as optional.
+
+### 7b. Account creation
+
+1. Sign up. Watch the handle field as you type: taken and available states must
+   both render, and neither may be conveyed by colour alone.
+2. **Expect:** a terms/EULA link before the account is created. Its absence is a
+   store rejection, not a nitpick.
+3. Force-quit and relaunch. **Expect:** still signed in, and the feed does not
+   flash its signed-out empty state on the way — sign-in is restored
+   asynchronously, and `FeedView` keys its load on the session for this reason.
+
+### 7c. Publishing is opt-in and never silent
+
+1. With a library already ranked, sign in for the first time.
+2. **Expect:** nothing is published automatically. Publishing is a decision the
+   user makes, and a first sign-in that quietly uploaded a library would be the
+   single worst bug in this app.
+3. Publish deliberately. Then check on a second account (or signed out, from a
+   public profile) that untracked titles and titles with no `externalId` did
+   **not** travel.
+
+### 7d. Follow, feed, comment
+
+1. From account A, find account B by handle and follow.
+2. Rank something on B. **Expect:** it appears in A's Following feed.
+3. Comment and react from A. **Expect:** both appear on the post, and the count
+   on the card matches the detail screen.
+4. Scroll the feed past one page. **Expect:** more posts load, and the loading
+   row announces itself to VoiceOver rather than sitting silent.
+
+### 7e. Privacy and safety
+
+1. Make B private. **Expect:** A, unfollowed, sees a private state and no
+   content — and a *blocked* account is indistinguishable from one that never
+   existed.
+2. **Report and block must be reachable from the UI.** `SettingsView` promises
+   both in prose. If you cannot reach them by tapping, that is Guideline 1.2 and
+   the app cannot ship.
+3. Delete the account. **Expect:** published content is gone; the library on the
+   device is untouched and still fully usable signed out. This is the
+   distinction the Settings copy makes, and it must be true.
+
+### 7f. Score rules survive the network
+
+The ranking mechanic is not allowed to change because a social layer exists.
+
+1. A foreign profile's top five must obey rule 6 exactly as your own does: a
+   number only once that bucket holds five, otherwise a position.
+2. Airplane mode: Home, Ranking, Search, Compare and Profile stay fully
+   functional. The feed and profiles degrade to an explained empty state — never
+   an endless spinner.
+
+### 7g. Accessibility
+
+1. VoiceOver: sign in -> find a person -> follow -> read a feed post, unaided.
+2. Every spinner announces what it is loading, not a bare "in progress".
+3. Largest accessibility text size across the feed card and the profile header.
+

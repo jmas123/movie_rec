@@ -82,9 +82,10 @@ final class RankingViewModel {
         Sentiment.allCases.allSatisfy { items(for: $0).isEmpty }
     }
 
-    /// Score to display for `item`, withheld while its bucket is too small.
-    func displayScore(for item: MediaItem) -> Double? {
-        library.displayScore(for: item)
+    /// What the row for `item` may say: a score once its bucket has earned one,
+    /// otherwise the position rule 6 shows in its place.
+    func scoreDisplay(for item: MediaItem) -> ScoreDisplay {
+        library.scoreDisplay(for: item)
     }
 
     // MARK: Reorder

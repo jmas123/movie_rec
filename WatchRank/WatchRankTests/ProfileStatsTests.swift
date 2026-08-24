@@ -56,7 +56,6 @@ struct ProfileStatsTests {
         #expect(stats.tvCount == 0)
         #expect(stats.averageScore == nil)
         #expect(stats.topFive.isEmpty)
-        #expect(stats.topGenres.isEmpty)
     }
 
     // MARK: counts
@@ -90,12 +89,9 @@ struct ProfileStatsTests {
 
     // MARK: genres
 
-    @Test("Top genres are count-descending with an alphabetical tie-break, capped at 3")
-    func topGenres() {
-        let stats = ProfileStats(watched: fixture())
-        // Drama: A,B,C = 3 · Sci-Fi: A,D = 2 · Comedy: C,E = 2 · Action: F = 1
-        // → Drama(3), then the 2-way tie breaks alphabetically: Comedy, Sci-Fi.
-        #expect(stats.topGenres.map(\.genre) == ["Drama", "Comedy", "Sci-Fi"])
-        #expect(stats.topGenres.map(\.count) == [3, 2, 2])
-    }
+    // `topGenres` was removed in Phase 19. It ranked by *count*, which answers
+    // "what do you watch most" — a duller question than the taste screen's
+    // effect-ranked claims, and one that would now contradict them. Two lists
+    // disagreeing about the same library is worse than one fewer list. Coverage
+    // moved to `TasteAnalysisTests.rankedByEffect`.
 }

@@ -27,7 +27,7 @@ import Testing
 @MainActor
 func makeContainer() throws -> ModelContainer {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    return try ModelContainer(for: MediaItem.self, configurations: config)
+    return try ModelContainer(for: MediaItem.self, PendingPublish.self, configurations: config)
 }
 
 @MainActor

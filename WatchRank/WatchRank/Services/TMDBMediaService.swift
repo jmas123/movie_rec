@@ -42,6 +42,16 @@ final class TMDBMediaService: MediaService, CandidateSource, @unchecked Sendable
     private let vocabularyLock = NSLock()
     private var _vocabulary: TMDBGenreVocabulary?
 
+    /// Requests currently on the wire, keyed by URL.
+    ///
+    /// Two callers wanting the same URL share one round trip instead of racing.
+    /// Building a cold candidate pool is the case that needs it: moods overlap,
+    /// so the same `/discover` page is asked for by several components within
+    /// milliseconds, and without coalescing every one of them is a separate
+    /// request against a rate-limited API.
+    private let inFlightLock = NSLock()
+    private var inFlight: [String: Task<Data, Error>] = [:]
+
     private var cachedVocabulary: TMDBGenreVocabulary? {
         vocabularyLock.lock()
         defer { vocabularyLock.unlock() }
@@ -313,6 +323,45 @@ final class TMDBMediaService: MediaService, CandidateSource, @unchecked Sendable
     }
 
     private func perform<Value: Decodable>(_ url: URL) async throws -> Value {
+        let data = try await coalescedData(for: url)
+        do {
+            return try JSONDecoder().decode(Value.self, from: data)
+        } catch {
+            throw TMDBError.decoding(String(describing: error))
+        }
+    }
+
+    /// One round trip per URL, however many callers want it.
+    ///
+    /// The check and the insert happen under one lock so two callers arriving
+    /// together cannot both miss and both fetch. The lock is never held across
+    /// an `await`: creating a `Task` starts it without suspending here.
+    private func coalescedData(for url: URL) async throws -> Data {
+        let key = url.absoluteString
+
+        let (task, isOwner): (Task<Data, Error>, Bool) = {
+            inFlightLock.lock()
+            defer { inFlightLock.unlock() }
+            if let existing = inFlight[key] { return (existing, false) }
+            let fresh = Task<Data, Error> { try await self.fetch(url) }
+            inFlight[key] = fresh
+            return (fresh, true)
+        }()
+
+        defer {
+            if isOwner {
+                inFlightLock.lock()
+                inFlight[key] = nil
+                inFlightLock.unlock()
+            }
+        }
+        return try await task.value
+    }
+
+    /// The actual request. No retry loop on purpose: a failed call falls back to
+    /// a stale cache entry, and retrying a rate-limited or failing endpoint in a
+    /// loop is how a client turns one outage into several.
+    private func fetch(_ url: URL) async throws -> Data {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         // v4 bearer token: keeps the credential out of the URL, and therefore
@@ -325,11 +374,6 @@ final class TMDBMediaService: MediaService, CandidateSource, @unchecked Sendable
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
             throw TMDBError.http(status: http.statusCode)
         }
-
-        do {
-            return try JSONDecoder().decode(Value.self, from: data)
-        } catch {
-            throw TMDBError.decoding(String(describing: error))
-        }
+        return data
     }
 }

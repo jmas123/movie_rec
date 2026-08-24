@@ -643,6 +643,77 @@ struct MediaLibraryViewModelTests {
         #expect(vm.itemsUntilScoreRevealed(for: show) == 4)
     }
 
+    @Test("A row shows a position while its bucket has not earned a number")
+    func scoreDisplayFallsBackToPosition() throws {
+        let vm = try makeLibrary()
+        var ranked: [MediaItem] = []
+
+        for n in 1...MediaLibraryViewModel.minimumBucketSizeForScore {
+            let film = makeItem("Film \(n)", type: .movie)
+            vm.markWatched(film, sentiment: .liked)
+            driveSessionPreferringExisting(vm: vm)
+            vm.finalizeRanking(for: film)
+            ranked.append(film)
+        }
+
+        // Full bucket: every row is entitled to its number.
+        for item in ranked {
+            let score = try #require(item.score)
+            #expect(vm.scoreDisplay(for: item) == .score(score))
+        }
+
+        // Under the threshold a row must still say something. The bug this
+        // guards is silence — a ranked title rendering exactly like an
+        // unwatched search result.
+        let vm2 = try makeLibrary()
+        let first = makeItem("First", type: .movie)
+        vm2.markWatched(first, sentiment: .liked)
+        driveSessionPreferringExisting(vm: vm2)
+        vm2.finalizeRanking(for: first)
+
+        // Alone in the bucket: never compared, so not even a position is earned.
+        #expect(vm2.scoreDisplay(for: first) == .sentimentOnly(.liked))
+
+        let second = makeItem("Second", type: .movie)
+        vm2.markWatched(second, sentiment: .liked)
+        driveSessionPreferringExisting(vm: vm2)
+        vm2.finalizeRanking(for: second)
+
+        // Now a comparison has happened, so positions mean something — and the
+        // bucket is still two short of a number.
+        for item in vm2.bucket(for: .liked, type: .movie) {
+            let rank = try #require(item.rankInBucket)
+            #expect(vm2.scoreDisplay(for: item) == .rank(position: rank + 1, sentiment: .liked))
+        }
+    }
+
+    @Test("A position is not shown mid-comparison")
+    func scoreDisplaySaysNothingWhileASessionIsOpen() throws {
+        let vm = try makeLibrary()
+        for n in 1...2 {
+            let film = makeItem("Film \(n)", type: .movie)
+            vm.markWatched(film, sentiment: .liked)
+            driveSessionPreferringExisting(vm: vm)
+            vm.finalizeRanking(for: film)
+        }
+
+        let candidate = makeItem("Candidate", type: .movie)
+        vm.markWatched(candidate, sentiment: .liked)
+
+        // The stored rank is a placeholder the user's next tap will overwrite.
+        // Showing it would present a guess as an answer.
+        #expect(vm.scoreDisplay(for: candidate) == .sentimentOnly(.liked))
+    }
+
+    @Test("An unwatched item shows no badge at all")
+    func scoreDisplayIsNoneForUnwatchedItems() throws {
+        let vm = try makeLibrary()
+        let queued = makeItem("Queued", type: .movie)
+        vm.addToWantToWatch(queued)
+        #expect(vm.scoreDisplay(for: queued) == .none)
+        #expect(vm.scoreDisplay(for: queued).accessibilityDescription == nil)
+    }
+
     @Test("An unwatched item never shows a score")
     func unwatchedItemsHaveNoDisplayScore() throws {
         let vm = try makeLibrary()

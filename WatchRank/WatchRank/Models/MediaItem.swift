@@ -71,6 +71,26 @@ final class MediaItem {
 
     var review: String?
 
+    // MARK: - Prediction feedback
+
+    /// What the app predicted the user would score this, recorded when they
+    /// queued it from a recommendation.
+    ///
+    /// Frozen at the moment of the guess. Re-deriving it later would compare
+    /// the model against itself after it had already seen more of the user's
+    /// taste, which measures nothing — the whole point is to hold the app to
+    /// what it actually said at the time.
+    var predictedScore: Double?
+
+    /// When that guess was made. Kept because the target drifts: a score is a
+    /// quantile over its bucket, so a pair recorded months apart is not
+    /// strictly comparable to a fresh one.
+    var predictedAt: Date?
+
+    /// "Not for me." The only negative signal available without asking the user
+    /// to rate something they have not seen.
+    var dismissed: Bool = false
+
     // MARK: - Timestamps
 
     var dateAdded: Date
@@ -94,6 +114,9 @@ final class MediaItem {
         score: Double? = nil,
         rankInBucket: Int? = nil,
         review: String? = nil,
+        predictedScore: Double? = nil,
+        predictedAt: Date? = nil,
+        dismissed: Bool = false,
         dateAdded: Date = .now,
         dateWatched: Date? = nil
     ) {
@@ -112,6 +135,9 @@ final class MediaItem {
         self.score = score
         self.rankInBucket = rankInBucket
         self.review = review
+        self.predictedScore = predictedScore
+        self.predictedAt = predictedAt
+        self.dismissed = dismissed
         self.dateAdded = dateAdded
         self.dateWatched = dateWatched
     }

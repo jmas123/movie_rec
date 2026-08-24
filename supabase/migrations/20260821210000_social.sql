@@ -171,21 +171,6 @@ create table public.blocks (
   constraint blocks_no_self check (blocker_id <> blocked_id)
 );
 
--- reports ---------------------------------------------------------------------
---
--- Insert-only for users. There is no select policy at all, so a reporter cannot
--- read the report queue and a reported user cannot discover they were reported.
--- Moderation reads happen with the service role, never from the app.
-
-create table public.reports (
-  id           uuid primary key default gen_random_uuid(),
-  reporter_id  uuid not null references public.profiles (id) on delete cascade,
-  subject_kind text not null check (subject_kind in ('post', 'comment', 'profile')),
-  subject_id   uuid not null,
-  reason       text not null check (length(reason) between 1 and 500),
-  created_at   timestamptz not null default now()
-);
-
 -- MARK: - 3. Policy helpers ---------------------------------------------------
 --
 -- Helpers live outside `public` so PostgREST never exposes them as RPCs.
@@ -303,7 +288,6 @@ alter table public.posts        enable row level security;
 alter table public.comments     enable row level security;
 alter table public.reactions    enable row level security;
 alter table public.blocks       enable row level security;
-alter table public.reports      enable row level security;
 
 -- profiles --------------------------------------------------------------------
 
@@ -405,11 +389,6 @@ create policy blocks_insert on public.blocks for insert to authenticated
 
 create policy blocks_delete on public.blocks for delete to authenticated
   using (blocker_id = auth.uid());
-
--- reports (insert-only; no select policy at all) -------------------------------
-
-create policy reports_insert on public.reports for insert to authenticated
-  with check (reporter_id = auth.uid());
 
 -- MARK: - 5. Triggers ---------------------------------------------------------
 
@@ -668,7 +647,7 @@ $$;
 
 revoke all on public.profiles, public.follows, public.ranked_items,
               public.posts, public.comments, public.reactions,
-              public.blocks, public.reports
+              public.blocks
   from anon, authenticated;
 
 revoke all on function public.feed(timestamptz, uuid, int) from anon, public;
@@ -681,4 +660,3 @@ grant select, insert,         delete on public.posts        to authenticated;
 grant select, insert, update, delete on public.comments     to authenticated;
 grant select, insert,         delete on public.reactions    to authenticated;
 grant select, insert,         delete on public.blocks       to authenticated;
-grant         insert                 on public.reports      to authenticated;

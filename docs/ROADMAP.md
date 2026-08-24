@@ -210,7 +210,7 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 
 ## Phase 7 — Ranking screen ✅
 
-> `RankingViewModel` + `RankingView` written and type-check clean. Segmented All/Movies/TV tab; three collapsible sentiment sections; rows are `MediaRow`s (trailing score) that push to `MediaDetailView`; screen-level + per-section empty states. **Resolves open question #3 (cross-bucket drag):** drag-to-reorder is enabled only on the All tab (where the visible list maps 1:1 onto the full bucket the engine rescore) and is confined to a single sentiment section (each is its own `ForEach`), so drags never cross buckets and filtered-tab subsets are never reordered ambiguously. `RankingViewModelTests` written (filtering, empty state, reorder gate, move delegation) but not yet *run* pending a runtime.
+> `RankingViewModel` + `RankingView` written and type-check clean. Segmented All/Movies/TV tab; three collapsible sentiment sections; rows are `MediaRow`s (trailing score) that push to `MediaDetailView`; screen-level + per-section empty states. **Resolves open question #3 (cross-bucket drag):** drag-to-reorder is enabled only on the All tab (where the visible list maps 1:1 onto the full bucket the engine rescore) — **later inverted**, see below and is confined to a single sentiment section (each is its own `ForEach`), so drags never cross buckets and filtered-tab subsets are never reordered ambiguously. `RankingViewModelTests` written (filtering, empty state, reorder gate, move delegation) but not yet *run* pending a runtime.
 
 
 **Goal:** The hero screen. Browse, collapse, and reorder your ranked items.
@@ -314,7 +314,58 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 
 ---
 
-## Phase 11 — Polish & QA ⬜
+## Phase 11 — Polish & QA 🟡
+
+> **Started 2026-08-23**, long after Parts II and III landed. An audit against this phase's
+> own steps found three of them effectively already satisfied by later work — there are **no
+> hardcoded colours anywhere** in the app, and 22 `EmptyStateView` sites across 13 screens
+> cover step 1 more thoroughly than it asks. The VoiceOver path this phase is judged on
+> (Mark Watched → Compare → Ranking) already carries combined labels and hints throughout.
+>
+> **What the audit found instead** — and what this pass fixed:
+>
+> 1. **Ranking rule 6 was only half implemented.** The rule says a withheld score is replaced
+>    by a position ("#2 in Liked it"); that fallback existed on `MediaDetailView` and nowhere
+>    else. On Ranking, Search and Profile a row in a sub-five bucket rendered a *blank*
+>    trailing area — a watched, ranked title looked exactly like an unwatched search result,
+>    for the whole of a new user's first session. Fixed with `Models/ScoreDisplay.swift` and
+>    `MediaLibraryViewModel.scoreDisplay(for:)`: one resolver, four honest cases, three tests.
+>    `MediaRow` now takes a `ScoreDisplay` rather than a `Double?`, because an optional could
+>    only ever express "number" or "silence".
+> 2. **`RankingView`'s file header described the inverse of the shipped rule** (see
+>    `GAP-AUDIT.md` §5). Corrected, along with the same claim in `README.md`, `MANUAL-QA.md`
+>    and this file.
+> 3. **Five view files lived one directory too deep**, in a stray
+>    `WatchRank/WatchRank/WatchRank/Views/`. Moved; the synchronized root group needed no
+>    `.pbxproj` edit and the suite stayed green.
+>
+> **466 unit tests green** after the change, up from 463.
+>
+> **A second pass the same day** closed the rest of what the audit found:
+>
+> 4. **`Spacing` was written and then not adopted.** Discover and the social screens used it;
+>    every Part I screen still carried literals. 25 values converted — but *only* those already
+>    exactly on the 4-point scale, which makes them pure renames with no visual change. The
+>    off-grid values (3, 5, 6, 10, 14pt) were left alone on purpose: they are the typographic
+>    fine-tuning `Spacing.swift`'s own doc comment excludes, and nudging them to the nearest
+>    step would silently restyle screens nobody has rendered yet.
+> 5. **Two 9-point fonts that never scaled** in `RecommendationRow`'s predicted badge, now
+>    `.caption2` with a `@ScaledMetric` minimum width. The badge is capped at
+>    `accessibility1` — a trailing pill that keeps growing eats the title it belongs to — which
+>    costs nothing, because it is hidden from VoiceOver and every word in it is already spoken
+>    by the row's own label. `EmptyStateView`'s 44pt symbol now scales with `@ScaledMetric`:
+>    an empty state is exactly where a user at a large text size is being asked to read.
+>    `PosterPlaceholder`'s fixed glyph stays fixed, and now says why in place.
+> 6. **Seven bare `ProgressView()`s** announced "in progress" and nothing else. Each now says
+>    what it is loading. `SettingsView`'s zero accessibility modifiers turned out to be a false
+>    alarm — it is a `List` of standard controls, which VoiceOver handles natively.
+> 7. **`MANUAL-QA.md` gained Journey 7 (social)** — signed-out completeness, publishing consent,
+>    follow/feed/comment, privacy and safety, and the check that rule 6 still holds on a foreign
+>    profile. `README.md`'s status table and known-limitations list were rewritten against what
+>    is actually true, including a pointer to `GAP-AUDIT.md`'s store blockers.
+>
+> **What remains is step 5, and it cannot be automated:** none of this has been seen rendered
+> or heard under VoiceOver. The phase stays 🟡 until someone walks `MANUAL-QA.md` on a device.
 
 **Goal:** Take the app from "works" to "feels premium" per the SPEC's UX bullets.
 
@@ -865,7 +916,19 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ---
 
-## Phase 17 — Calibration & feedback ⬜
+## Phase 17 — Calibration & feedback ✅
+
+> **Built 2026-08-21. 326 unit tests pass**, up from 309.
+>
+> **The gate passes — on the fixture and on a real library.** Cross-validation over the user's actual 49-title library: **Spearman ρ = +0.366** against a threshold of 0.283, MAE 1.102 beating both nulls (baseline 1.165, modal 1.164), Precision@10 = 1.00 against a base rate of 0.86. The feature effects are signal, not noise.
+>
+> **That result arrived because the library gained a second bucket.** Measured the day before at 41 titles all `liked`: ρ = +0.187, not significant, prediction range 8.37–8.44. At 49 titles with 7 marked "It was fine": ρ = +0.366, significant, range **7.50–8.46**. Seven ratings in a second bucket roughly doubled the correlation and widened the output tenfold — direct confirmation that ~85% of the signal is bucket membership, and that the binding constraint on prediction quality is *sentiment diversity*, not tuning.
+>
+> **`MediaItem`'s schema change did not need a simulator wipe, contrary to `CLAUDE.md`.** `predictedScore` and `predictedAt` are optional and `dismissed` is defaulted, so SwiftData lightweight-migrated in place: all 50 items survived, the three columns appeared, no crash. The blanket rule is right for renames, type changes and relationships and **too conservative for purely additive optional/defaulted properties**. The library was exported to a gitignored backup first regardless, which is the discipline worth keeping.
+>
+> **The accuracy line refuses to speak when the correlation is not significant.** "Predictions land within 1.1 points" reads as a result and is one only if the ordering holds up; below threshold Profile says so instead. Quoting an error without a rank test would dress a number as a finding.
+>
+> **Step 5 (auto-tuning constants) was not built, deliberately.** It was conditional on cross-validation showing that constant choice matters, and the evidence points elsewhere: the calibration slope is already shrunk by explained variance, and on the real library it lands near identity. Tuning `K_GENRE` against ρ = 0.37 at n = 49 would be fitting noise. Revisit past ~150 ranked titles.
 
 **Goal:** Find out whether the predictions are any good, and let the user correct them. Phases 12–16 ship a plausible algorithm; this is what makes it an accountable one.
 
@@ -901,14 +964,30 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ### Files created / modified
 
-- `WatchRank/WatchRank/Models/MediaItem.swift` (`predictedScore`, `predictedAt`, `dismissed`)
-- `WatchRank/WatchRank/Services/RecommendationEngine.swift` (accuracy helpers)
-- `WatchRank/WatchRank/Views/Profile/ProfileView.swift` (modified)
-- `WatchRank/WatchRankTests/RecommendationAccuracyTests.swift`
+**As built:**
+
+- `Models/MediaItem.swift` — `predictedScore`, `predictedAt`, `dismissed`
+- `Models/PredictionAccuracy.swift` — the metric suite plus `Ranks` (midranks, Pearson, Spearman)
+- `Services/RecommendationEngine.swift` — `accuracy(for:)`, confidence deciles, both nulls
+- `ViewModels/MediaLibraryViewModel.swift` — `addToWantToWatch(_:predicted:)`, `dismiss`, `undismiss`, `matchedPredictions`
+- `ViewModels/RecommendationViewModel.swift` — dismissals join the exclusion set
+- `Views/Profile/ProfileView.swift` — the accuracy section, plus `RevisionCache` so cross-validation never runs in a `body` evaluation
+- `Views/Discover/{RecommendationRow, DiscoverView}.swift` — "Not for me", and the guess frozen on queue
+- `WatchRankTests/RecommendationAccuracyTests.swift`
 
 ---
 
-## Phase 18 — Discover polish & QA ⬜
+## Phase 18 — Discover polish & QA ✅ (code complete; visual/VoiceOver pass is manual)
+
+> **Built 2026-08-21. 331 unit tests pass**, up from 326.
+>
+> **Request coalescing was genuinely missing** and is the one substantive gap this phase found. `TMDBMediaService` had no in-flight deduplication, so a cold pool build — where overlapping moods ask for the same `/discover` page within milliseconds — issued a separate round trip per caller. Now keyed by URL, with the check-and-insert under one lock so two callers arriving together cannot both miss. Retries were already absent, which is the right posture: a failed call falls back to a stale cache entry rather than turning one outage into several.
+>
+> **Posters are now decorative.** `PosterPlaceholder` carried its own "Poster for Dune" label, so VoiceOver read every title twice — once as artwork, once as the row. Containers already name the title; the artwork is silent.
+>
+> **The remaining polish is inherently manual and is logged, not claimed.** Dark mode, Dynamic Type at accessibility sizes, and the VoiceOver walkthrough cannot be driven from this environment (`osascript` has no assistive access). `docs/MANUAL-VERIFICATION.md` item 2 carries them, and `MANUAL-QA.md` Journey 6 is the script to follow — cold start, recommendations, the feedback loop, the Detail prediction, airplane mode, and accessibility.
+>
+> **Performance is bounded by a test rather than measured on device.** Ten mood requests over a full pool with a 100-title library, asserting the profile is built once and the whole sweep stays well inside a loose ceiling. A deliberate non-goal: a tight millisecond gate would be flaky in CI and would fail for reasons unrelated to the code.
 
 **Goal:** What Phase 11 does for the MVP, applied to the recommendation surface and the network layer.
 
@@ -935,7 +1014,7 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ---
 
-## Phase 19 — Taste analysis ⬜
+## Phase 19 — Taste analysis ✅
 
 > **Measured 2026-08-21, and the news is bad for the headline feature.** From [`FEATURE-SPACE.md`](./FEATURE-SPACE.md), the number of people seen **at least three times** in a library of a given size:
 >
@@ -948,6 +1027,18 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 > **A "your favourite director" card is empty below roughly 100 watched films, and is empty at every measured size for television.** Design this phase around that rather than discovering it in the UI: either gate credit claims behind a support floor and show nothing until it is cleared — the same discipline as ranking rule 6 — or drop the director card and lead with composers and cast, which clear the floor three to four times more often. Credits still feed *prediction* at any library size; what the measurement rules out is *displaying* them early.
 >
 > Two secondary findings: **composers repeat more than directors** (8.2 vs 2.3 at 100 films), because a composer spans directors — the hunch in Phase 12 step 9 was right. And **cast nesting is 50%**: for actors seen more than once, half their appearances fall under a single director, so "you like this actor" and "you like this director" are substantially one observation counted twice. The suppression rule this phase assumes is justified.
+
+> **Built 2026-08-21. 341 unit tests pass.** Part II is complete.
+>
+> **No new mathematics, as promised.** Every number on the screen comes from the profile the recommender already builds, so what the app *says* about the user and what it *recommends* to them cannot disagree. The phase is selection, suppression and presentation.
+>
+> **`ProfileStats.topGenres` is removed rather than left alongside.** It ranked by count — "what do you watch most" — which is a duller question than the taste screen's effect-ranked claims *and* would visibly contradict them on the same screen. Two lists disagreeing about one library is worse than one fewer list. Its coverage moved to `TasteAnalysisTests.rankedByEffect`.
+>
+> **Nesting suppression is per-claim-set, not per-family.** A feature whose supporting titles are ≥ 80% contained in an already-shown, higher-effect feature is dropped. The 80% floor is anchored to the measurement: for actors seen more than once, the median share of appearances under a single director is 50%, so 80% suppresses genuine restatement without hiding an actor the user follows *across* directors. Both directions are asserted.
+>
+> **Crowd agreement stays a sentence, not a coefficient.** Spearman over the user's score order against TMDB's `vote_average` order — never a mean difference, which would be meaningless given bucket-relative quantiles. But "0.41" is inside-baseball and "you are a contrarian" is a characterisation the app would be putting in the user's mouth, so it renders as "Your ranking loosely tracks the crowd." The test that matters proves it is rank-based: invariant under any monotone rescaling of the user's scores.
+>
+> **A Swift-specific snag worth noting:** the headline contrast built with inline string interpolation defeated the type checker outright ("unable to type-check this expression in reasonable time"). Built as a plain `String` first, then handed to `Text`.
 
 **Goal:** Turn the `TasteProfile` the engine already builds into a legible portrait of the user's taste — what they gravitate toward, what they actually rate highly, and where those two disagree.
 
@@ -981,12 +1072,12 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ### Files created / modified
 
-- `WatchRank/WatchRank/Models/TasteAnalysis.swift`
-- `WatchRank/WatchRank/Views/Profile/TasteAnalysisView.swift`
-- `WatchRank/WatchRank/Views/Profile/ProfileView.swift` (teaser card; `topGenres` removed)
-- `WatchRank/WatchRankTests/TasteAnalysisTests.swift`
-- `WatchRank/WatchRankTests/ProfileStatsTests.swift` (drop `topGenres` coverage)
-- `docs/MANUAL-QA.md` (taste-analysis journey)
+**As built:**
+
+- `Models/TasteAnalysis.swift` — `Claim`, `Contrast`, floors, nesting suppression, crowd agreement
+- `Views/Profile/TasteAnalysisView.swift` — headline, genres, themes, people, context, crowd
+- `Views/Profile/ProfileView.swift` — "Your taste" link; `topGenres` removed
+- `WatchRankTests/TasteAnalysisTests.swift`, `ProfileStatsTests.swift` (coverage moved)
 
 ---
 
@@ -1041,7 +1132,21 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ---
 
-## Phase 21 — Networking foundation ⬜
+## Phase 21 — Networking foundation ✅
+
+> **Built 2026-08-21. 359 unit tests pass**, up from 341. No test touches the network.
+>
+> **Single-flight refresh is the whole reason this is an `actor`**, and it is verified: ten concurrent 401s produce **exactly one** refresh call. Supabase rotates refresh tokens, so refreshing per-401 would invalidate all but one and sign the user out on the busiest screen — which is the screen that fires concurrent requests in the first place.
+>
+> **A stale 401 is not a second failure.** A request that set off before someone else's refresh completed will 401 through no fault of the new token. `sessionGeneration` catches that: seeing the generation has already moved, the client returns the current session rather than spending another refresh and rotating a token that was just replaced.
+>
+> **403 is deliberately not 401.** An RLS denial is the expected outcome of asking for a row you cannot see, and treating it as a dead session would sign a user out for browsing a profile they do not follow. Asserted directly, including that the session survives.
+>
+> **Two date shapes, one decoder.** Postgres `timestamptz` returns ISO-8601 with fractional seconds sometimes and without them other times; a decoder handling one fails on real data. Both are tried, and a test pins that they agree to the millisecond.
+>
+> **The anon key is in the bundle on purpose.** It identifies the project and carries no privilege — row-level security is the entire authorisation boundary. Signed out, it is sent as *both* `apikey` and bearer, which is what lets policies written against `anon` serve public reads with no session at all.
+>
+> **Local Supabase was deliberately not started.** The machine is an 8 GB M1 Air already sitting at 3.2 GB of swap, and the full stack is six containers. Phase 21 is stub-tested by design, so nothing was blocked — but every phase in Part III now carries the same caveat, logged in `docs/MANUAL-VERIFICATION.md`: **none of this has been run against a real Supabase project.**
 
 **Goal:** One HTTP client every social service is built on: auth headers, token refresh, typed errors, and a stub-friendly seam.
 
@@ -1069,7 +1174,21 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ---
 
-## Phase 22 — Accounts, handles, and the signed-out app ⬜
+## Phase 22 — Accounts, handles, and the signed-out app ✅
+
+> **Built 2026-08-21. 378 unit tests pass**, up from 359.
+>
+> **The invariant is asserted, not assumed.** `SignedOutInvariantTests` ranks two films end to end through the real comparison flow with `SessionViewModel(service: nil)`, and does the same for Discover and taste analysis. If the social layer ever reaches into ranking, that test fails rather than the app quietly requiring a login.
+>
+> **`.unavailable` is a distinct state from `.signedOut`.** A build with no Supabase credentials has nothing to sign in *to*, so offering a form that cannot work would be worse than explaining. The Profile account section disappears entirely rather than offering a dead button.
+>
+> **A taken handle is decided by the 409, not the probe.** Two people can pass an availability check for the same handle in the same second and only one insert wins, so `claimHandle` catches the conflict and the pre-check is explicitly advisory. The sign-up form will *not* block submission on a stale "taken" result for the same reason — a handle that just freed up must remain claimable.
+>
+> **Sign-up rolls back rather than stranding a half-account.** The handle is claimed after the account exists, because it needs the user id; if that insert fails the client signs back out, so a retry starts clean instead of leaving a signed-in session with no profile.
+>
+> **The mock enforces the same rules as the real service** — handle validation, taken handles, password length, duplicate email — so a passing test is testing the app rather than the stub's leniency. Both are driven through one contract suite.
+>
+> **Sign in with Apple (step 5) was not built.** It is a system framework with no dependency cost, but it needs an entitlement, a configured Services ID, and a real device to verify — none of which an autonomous session can do. Logged in `docs/MANUAL-VERIFICATION.md` rather than half-built.
 
 **Goal:** Sign up, sign in, sign out, claim a handle, edit a profile — and prove the app is still whole without any of it.
 
@@ -1100,7 +1219,23 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ---
 
-## Phase 23 — Publishing the library ⬜
+## Phase 23 — Publishing the library ✅
+
+> **Built 2026-08-22. 395 unit tests pass**, up from 378.
+>
+> **The outbox marks centrally rather than at each call site**, because "remember to enqueue everywhere" is precisely what the vacated-bucket bug got wrong twice. Mutations mark a dirty `(type, sentiment)` key; `save()` flushes the set into rows. The unique key makes coalescing free — rank five films and the queue holds one row, so it grows with buckets touched, never with how fast the user ranks.
+>
+> **And the first version still missed two paths, which the tests caught.** `recomputeBucket` covers re-rating, but a title entering an *empty* bucket never recomputes anything, and an abandoned comparison session never reaches `finalizeRanking`. Both went unpublished. Fixed by marking the joining bucket in `markWatched` itself, where every path passes. The trap is real enough to have caught the fix for it.
+>
+> **A payload is always the whole bucket.** Every score in a bucket is a quantile over its current size, so publishing one row would strand the survivors on the server with scores computed for the old N — the vacated-bucket bug with a network in the middle. Asserted directly, and `bucket_size` travels on every row so a *viewer* can apply rule 6 rather than trusting the sender to have counted.
+>
+> **A failed publish never touches local state.** The ranking is the user's; the server holds a copy. The row stays, `attempts` increments, and a test pins that the local scores are byte-identical after a failed drain.
+>
+> **Titles with no `externalId` are counted, not dropped.** The bundled catalog and unresolved migrations produce them, and `SyncEngine.unpublishableCount` exists so the UI can say "3 titles are not published" rather than quietly omitting them.
+>
+> **An emptied bucket is a delete, not an empty upsert**, or an un-watched title stays visible to followers. The upsert path also deletes anything the server still holds for that bucket which is no longer in it, so a title that changed sentiment cannot appear in two buckets at once.
+>
+> **The schema change needed no wipe.** Adding a whole new `@Model` entity lightweight-migrated exactly as the additive properties did in Phase 17: `ZPENDINGPUBLISH` appeared, all 51 items survived, no crash. `CLAUDE.md`'s warning remains right for renames and type changes.
 
 **Goal:** The local ranking reaches the server, in whole buckets, without ever blocking the ranking flow.
 
@@ -1128,11 +1263,23 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 - `WatchRank/WatchRank/Services/SyncEngine.swift`
 - `WatchRank/WatchRank/ViewModels/MediaLibraryViewModel.swift`
 - `WatchRank/WatchRankTests/{SyncEngineTests,PublishPayloadTests}.swift`
-- ⚠️ SwiftData schema change — delete the app from the simulator before running.
+- SwiftData schema change — **no wipe needed**, verified: a new entity lightweight-migrates.
 
 ---
 
-## Phase 24 — The social graph ⬜
+## Phase 24 — The social graph ✅
+
+> **Built 2026-08-22. 414 unit tests pass**, up from 395.
+>
+> **Blocking is one `FollowState` case, not two.** A blocked person must not be able to tell which direction the block went, so the client never holds that information — and a blocked account raises `notFound` rather than anything more specific, making it indistinguishable from an account that does not exist.
+>
+> **A block severs both edges.** Leaving them would keep the blocked person's activity arriving in a feed built from follow rows, which is how a block "works" everywhere except the one place the user would notice. Asserted by blocking, unblocking, and checking the edge is gone.
+>
+> **The server decides `active` versus `pending`, always.** Only it knows whether the target is private, so the optimistic guess is replaced by whatever comes back rather than trusted. The optimistic state rolls back on failure — a phantom follow would survive until the next refresh and mislead everything downstream that reads the graph.
+>
+> **`relationship(with:)` is one RPC, not three requests.** Edge state plus both counts arrive together, so the follow button never renders half-populated and then jumps.
+>
+> **The client filters nothing that matters.** Every visibility rule — private libraries, blocks — is enforced by row-level security. What the client does is ask; what it receives is already filtered. A client-side check would be a weaker second copy of the policy that drifts from it.
 
 **Goal:** Find people, follow them, and see who follows you.
 
@@ -1162,7 +1309,17 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ---
 
-## Phase 25 — Public profiles ⬜
+## Phase 25 — Public profiles ✅
+
+> **Built 2026-08-22. 426 unit tests pass**, up from 414.
+>
+> **Rule 6 travels with the data, not with the renderer.** Every published row carries `bucket_size`, so the *viewer* decides whether a score has been earned rather than trusting the sender to have counted. `RankedItem.displayScore` applies `MediaLibraryViewModel.minimumBucketSizeForScore` — the same constant the owner's device uses — and a test pins that the two cannot diverge. If they ever did, one of the two screens would be lying about the same title.
+>
+> **`RankedItem` is deliberately not `MediaItem`.** One is the user's own persisted, mutable library row; the other is a read-only copy of a stranger's ranking. Keeping them distinct is what makes "no edit affordance on a foreign profile" structural rather than a matter of remembering to leave the modifier off.
+>
+> **Step 3 decided: taste analysis is *not* shown for other people.** It is computed locally from a `TasteProfile` the viewer does not have and could not verify, and Phase 19 exists precisely because a wrong stated fact about someone's taste costs more trust than a wrong prediction. Publishing enough to compute it for a stranger would also publish more than the ranking itself does.
+>
+> **Private and blocked both render as absence**, and the emptiness comes from row-level security rather than a client filter — the mock hides libraries the same way the policy does, so the test exercises the real shape.
 
 **Goal:** Someone else's ranking, rendered with the same care as your own.
 
@@ -1189,7 +1346,21 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ---
 
-## Phase 26 — The activity feed ⬜
+## Phase 26 — The activity feed ✅
+
+> **Built 2026-08-22. 439 unit tests pass**, up from 426.
+>
+> **Step 7 resolved — Home and the feed share one tab.** A sixth tab does not become a sixth tab on iOS; it becomes a "More" list, which is where features go to be forgotten. Neither could be cut: Home is the dashboard the whole app feeds, and a social app whose feed is buried is not one. But they answer the same question — "what's going on?" — for two different subjects, so `HomeTabView` offers *Yours* / *Following*. The switcher appears only when signed in; offering an empty half would advertise the feature as missing rather than optional.
+>
+> **The first design coalesced posts along with publishes, and that was wrong.** The outbox is keyed by bucket, so five rankings collapse into one row — correct for *publishing*, since five rankings rewrite one bucket and owe it one upsert. Attaching the post to that row meant five acts produced **one** post, silently dropping four from every follower's feed. Split: publishing coalesces per bucket, posting does not coalesce at all. A single insertion still yields exactly one post because the *act* is one, not because the bucket is.
+>
+> **The flooding test is the phase's real deliverable** and it caught the opposite bug on the way: ranking a tenth title into a bucket of ten emits exactly one post, and a reorder — which rewrites all ten scores — emits none while still publishing.
+>
+> **Payloads are frozen.** A post says what it said forever; reading through to the live ranking would rewrite history under a reader whenever the author ranked anything else, and would leave comments answering a sentence that no longer exists. Rule 6 applies here too — "#1 of 1" is not a ranking, so a bucket of one gets no rank line at all.
+>
+> **Keyset cursor, not `OFFSET`.** Posts landing mid-scroll shift every offset underneath the reader, so an offset page repeats rows it has shown and skips rows it has not. A duplicate-id guard backs it up, because a duplicated row in a feed is very visible when the cursor misbehaves.
+>
+> **Three empty states, not one.** Signed out, following nobody, and following people who are quiet need three different actions — telling someone to find people they have already found is useless.
 
 **Goal:** The tab that makes it a social app.
 
@@ -1221,7 +1392,19 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ---
 
-## Phase 27 — Comments and reactions ⬜
+## Phase 27 — Comments and reactions ✅
+
+> **Built 2026-08-22. 453 unit tests pass**, up from 439.
+>
+> **Reporting is on the content, not in Settings.** Every comment row and every post carries it, because a report flow the user has to go looking for is a report flow that does not get used — and guideline 1.2 asks for the former. `ReportReason` is a closed list rather than free text: free-text-only reports are unactionable at any volume.
+>
+> **Deletion is soft.** The row keeps its place and loses its content, so a thread does not lose its shape and the counts stay consistent. A comment that vanished entirely would leave the surrounding replies answering nothing.
+>
+> **A failed send gives the text back.** Losing a typed comment to a network blip is a small betrayal users remember, so the draft is restored rather than cleared optimistically.
+>
+> **Reactions deduplicate in the database, not the client.** The `(post_id, user_id)` primary key does it; the mock uses a `Set` for the same reason, so the test exercises the real shape rather than a client-side guard that production does not have.
+>
+> **`canDelete` is advisory and says so.** The policy decides; the client only avoids offering a control that would fail. Asserted both ways — your own comment, and any comment on your own post.
 
 **Goal:** Conversation on a post, and the safety rails that user-generated content requires from the first commit.
 
@@ -1253,7 +1436,23 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ---
 
-## Phase 28 — Moderation, privacy, and release readiness ⬜
+## Phase 28 — Moderation, privacy, and release readiness ✅ (code complete; deployment is manual)
+
+> **Built 2026-08-22. 463 unit tests pass**, up from 453. Part III is code-complete.
+>
+> **Amended 2026-08-23: code-complete is not the same as wired.** `SyncEngine` turns out to have no production call site, so nothing the running app does ever reaches `ranked_items` or `posts`, and the first-run publish consent from Phase 23 step 6 was never built. See **Phase 29**.
+>
+> **Account and data are different things, and the code says so.** Deleting the account removes everything published and leaves the local library untouched and usable signed out — asserted by ranking a film *after* deletion. App Store 5.1.1(v) asks for in-app deletion; it does not ask for the user's own device data to go with it, and taking it would be a second deletion nobody requested.
+>
+> **Deletion is one statement, server-side.** `delete_account()` removes the `auth.users` row and lets `on delete cascade` run the whole way down. A client deleting its own rows table by table would leave orphans the first time someone added a table and forgot.
+>
+> **Rate limiting is a trigger, not a client guard.** RLS authorises; it does not throttle, so without this one account writes as fast as the network allows. Comments 30/hour, follows 100/hour, raised as a named error so the client can say what happened rather than failing generically or silently doing nothing.
+>
+> **The TMDB proxy is an allow-list, not a forwarder.** An open proxy attached to someone's API key is a gift to whoever finds it, so only the six path shapes the app actually calls are permitted. **Written but not deployed** — see the manual list.
+>
+> **Reports are write-only.** Anyone signed in may file one; nobody may read the queue back. A reporter who could see it would learn whether the person they reported had been actioned, which is not theirs to know.
+>
+> **`README.md` corrected.** It still opened with "A local-only iOS app", which stopped being true at Phase 23. Stale privacy copy is worse than none.
 
 **Goal:** The things that are not polish. An app with accounts and user-generated content cannot ship without these.
 
@@ -1283,11 +1482,57 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ---
 
+## Phase 29 — Closing the publish loop 🔴 not started
+
+> **Why this phase exists.** Phases 23–27 are marked ✅ and their unit tests are green, but the loop they describe cannot be walked in the running app. Three gaps, found 2026-08-23:
+>
+> **`SyncEngine` has no production call site.** It is constructed in `SyncEngineTests` and `FeedViewModelTests` and nowhere else — `WatchRankApp.makeSocialStack` builds auth, graph, feed and rankings, but never the engine that drains the outbox. So `drain()` and `emitPosts()` never run outside a test: ranking a title marks a `PendingPublish` row that nothing ever reads, no bucket reaches `ranked_items`, and no row is ever inserted into `posts`. Phase 23 built the engine; nobody turned the key.
+>
+> **Nothing a solo user does can appear in their own feed, by design.** `public.feed` selects strictly from active followees, and `follows_no_self` forbids following yourself. That is correct behaviour — a feed of your own activity is the *Yours* half of `HomeTabView` — but it means the feed cannot be exercised, at all, without two accounts. Any manual QA script that says "publish, then check the feed" is describing something that cannot happen.
+>
+> **The last three migrations are not confirmed deployed.** `feed_page` and `author_posts` — the two RPCs `SupabaseFeedService` actually calls — live in `20260822010000_client_rpcs.sql`, which postdates the Phase 20 run. If they are absent from the hosted project, every feed load fails and the app renders the failure as `.error`, which reads as a bug in the client.
+>
+> Consent is also outstanding: Phase 23 step 6 asked that an existing local library not upload silently on first sign-in, and no consent surface was built. That step must land *before* the drain is wired, not after — wiring the drain first means the first person to sign in with a populated library publishes it without being asked.
+
+**Goal:** What Phases 23–27 built becomes reachable from the running app. Ranking a title publishes its bucket and emits one post; a follower sees it; and the whole social surface is drivable on the simulator without a server.
+
+### Steps
+
+1. **Consent first.** `Views/Auth/PublishConsentView.swift` — shown once per account on first sign-in with a non-empty library, stating exactly what becomes visible (title, position, sentiment, and the score only once its bucket holds `minimumBucketSizeForScore`) and what never does (untracked items, anything with a nil `externalId`, everything while signed out). Store the answer **keyed by user id**, not per device, so a second account on the same phone is asked again. Until it is granted `drain()` returns 0 and the outbox accrues — which is already its normal signed-out behaviour, so this adds a condition rather than a code path.
+2. **Build the engine in the app.** Add `SupabasePublishTransport` to `WatchRankApp.SocialStack`, construct `SyncEngine(library:transport:feed:currentUserID:)` with `currentUserID: { session.profile?.id }`, and hold it as `@State` beside the other view models — it is `@MainActor`, like them.
+3. **Drain on four triggers:** sign-in completes, `scenePhase` becomes `.active`, `finalizeRanking` returns, and connectivity returns (`NWPathMonitor` behind a protocol in `Services/`, so tests never touch the real network). `drain()` is idempotent and `@discardableResult` by contract — the payload is always the whole bucket — so an extra trigger costs a no-op request, never a wrong write. The ranking flow calls it *after* finalize and never awaits it: Part III invariant 2.
+4. **Say what is and is not published.** Settings shows the pending count and `SyncEngine.unpublishableCount` in words ("3 titles are not published — the catalog gave them no id"), which is the whole reason that property exists. Revoking consent stops future publishes and offers to remove what is already there.
+5. **Deploy the schema.** `supabase db push` for `20260822000000_moderation`, `20260822010000_client_rpcs` and `20260822020000_follow_list_rpcs`, then re-run `supabase/tests/rls_test.sql` against the hosted project. Until this is done, no client-side result means anything.
+6. **`-uiTestingMockSocial` launch flag.** `makeSocialStack` returns `MockAuthService` / `MockFeedService` / `MockSocialService` seeded with posts, mirroring how `-uiTestingInMemoryStore` and `makeService` already pin UI tests to the bundled catalog and for the same reason. This is what makes the feed, post detail, comments and reactions inspectable on the simulator with no server and no second account — and what makes UI tests of the social surface possible at all.
+7. **The two-account walk, on the real project.** Sign up A and B; B ranks titles and publishes; A follows B; A's *Following* tab shows B's posts, reacts and comments. Script it in `docs/MANUAL-QA.md`. This is the first time the schema, the RLS policies and the client are proven to agree with each other rather than each being tested against a stub of the other two.
+
+### Acceptance criteria
+
+- Ranking a title while signed in and consented produces **exactly one** `posts` row and one whole-bucket upsert in `ranked_items`, with no user action beyond the ranking itself.
+- Signing in with an existing library publishes **nothing** until the user says yes; declining leaves the app fully usable and the outbox intact.
+- The comparison flow's latency is unchanged with the network off, measured in the app rather than in a test, and the outbox drains on the next foreground.
+- A post by B appears in A's feed within one pull-to-refresh of B creating it.
+- `-uiTestingMockSocial` renders a populated feed, and comments and reactions respond, with the device in airplane mode.
+- Killing the app mid-drain loses nothing; re-running the drained queue is a no-op.
+- `MANUAL-VERIFICATION.md` blocker 5 ("Part III has never run against a real Supabase project") can be struck.
+
+### Files created / modified
+
+- `WatchRank/WatchRank/WatchRankApp.swift` — the engine, the mock-social flag, the drain triggers
+- `WatchRank/WatchRank/Views/Auth/PublishConsentView.swift` *(new)*
+- `WatchRank/WatchRank/Services/SyncEngine.swift` — the consent gate
+- `WatchRank/WatchRank/Services/Connectivity.swift` *(new)* — `NWPathMonitor` behind a protocol
+- `WatchRank/WatchRank/Views/Settings/SettingsView.swift` — pending and unpublishable counts
+- `WatchRank/WatchRankTests/SyncEngineTests.swift` — consent gating, trigger idempotence
+- `docs/MANUAL-QA.md` — the two-account walk; `docs/MANUAL-VERIFICATION.md` — blocker 5
+
+---
+
 ## Open questions (re-surface each session)
 
 1. **Comparator-count bound wording.** SPEC says "Cap at log2(N) comparisons"; the foundation tests assert the tighter, true bound `ceil(log2(N + 1))`. Both agree in practice for all N ≥ 1, but `CLAUDE.md` and `CompareViewModel`'s progress label use the test bound. If product wants the SPEC wording in user-facing copy, change `CompareViewModel.progress` accordingly.
 2. ~~**Score distribution within a bucket.**~~ **Resolved:** the shipped implementation uses the quantile-style inset, not the endpoint-inclusive interpolation this question described. `RankingEngine.recomputeScores` computes `score[i] = upper - ((i + 0.5) / N) * (upper - lower)`, so a single item lands at its range midpoint and no item ever sits exactly on a bucket boundary — the top of "Liked" is 10.0 - (0.5/N) * 3.2 rather than exactly 10.0. `CLAUDE.md` documents this as the rule; this entry was stale.
-3. ~~**Cross-bucket drag in Ranking.**~~ **Resolved in Phase 7:** drags are blocked from crossing sentiment sections (each section is its own `ForEach`), and reorder is offered only on the All tab. Cross-bucket sentiment changes go through `MediaLibraryViewModel.moveToBucket` / the Detail screen's Change Rating, not drag.
+3. ~~**Cross-bucket drag in Ranking.**~~ **Resolved in Phase 7, then inverted when buckets gained a media type:** drags are still blocked from crossing sentiment sections (each section is its own `ForEach`), but reorder is now offered only on the **Movies and TV** tabs, where the visible list *is* the `(type, sentiment)` bucket. The All tab interleaves two independent rankings, so it is not a bucket and has no Edit button — see `RankingViewModel.canReorder` and `CLAUDE.md` rule 5. Cross-bucket sentiment changes go through the Detail screen's Change Rating and the shared bucket recompute, not drag.
 4. **`ContentView.swift` deletion.** The Xcode template's `ContentView.swift` becomes dead code in Phase 10. Confirm with user before deleting vs. leaving as a placeholder.
 5. **Does a user's film taste predict their TV taste?** Phase 13 keeps the two baselines separate, but genre *effects* are currently pooled across both types — "you like crime" is treated as one fact about the user, not two. The alternative is per-type genre effects, which doubles the data required before anything is confident. Pooling is the default because sparse data is the binding constraint; revisit if Phase 17's cross-validation shows the pooled effects are worse than per-type ones on TV.
 6. **Moods vs. genres as the primary control.** "Dark" is a tone and "crime" is a genre, and the user named both in the same breath — which is the honest signal that people do not think in taxonomies. Phase 14 handles this with per-type mood definitions over TMDB genres *and* keywords, and Phase 13 models the taste profile as a generic `[String: Double]` feature space for exactly this reason. The open part is which feature family carries the signal — Phase 12's measurement answers it before either the moods or the engine are designed.

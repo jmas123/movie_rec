@@ -31,14 +31,21 @@ struct PosterPlaceholder: View {
                 endPoint: .bottomTrailing
             )
             Text(initial)
+                // Deliberately fixed, not `@ScaledMetric`: this glyph is art
+                // inside a caller-sized rectangle that does not grow with Dynamic
+                // Type, so scaling the letter would only overflow the poster it
+                // is painted on. It carries no information — it is hidden from
+                // VoiceOver, and the title is spelled out beside it either way.
                 .font(.system(size: 34, weight: .bold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.9))
                 .minimumScaleFactor(0.5)
-                .padding(8)
+                .padding(Spacing.sm)
         }
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .accessibilityElement()
-        .accessibilityLabel("Poster for \(title)")
+        // Decorative. Every surface that shows a poster already names the title
+        // next to it, so announcing "Poster for Dune" before "Dune" makes
+        // VoiceOver read everything twice.
+        .accessibilityHidden(true)
     }
 
     // MARK: Derived appearance
@@ -83,7 +90,7 @@ struct PosterPlaceholder: View {
 }
 
 #Preview("Edge cases", traits: .sizeThatFitsLayout) {
-    HStack(spacing: 12) {
+    HStack(spacing: Spacing.md) {
         PosterPlaceholder(title: "A")
         PosterPlaceholder(title: "Spider-Man: Into the Spider-Verse")
         PosterPlaceholder(title: "")

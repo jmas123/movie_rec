@@ -5,12 +5,19 @@
 //  The hero screen: browse your ranked items by sentiment, collapse sections,
 //  and drag-to-reorder within a bucket. A segmented tab filters by media type.
 //
-//  Reorder scope (decision for this phase): drag-to-reorder is enabled only on
-//  the "All" tab. There the visible list is the entire sentiment bucket, so a
-//  move maps 1:1 onto what `RankingEngine` rescore. On the Movies/TV tabs the
-//  list is a subset, so reordering is disabled (no Edit button) — see
-//  `RankingViewModel.canReorder`. Each sentiment is its own section, so drags
-//  can never cross sentiment boundaries either.
+//  The type tab lives in the navigation bar rather than in a band beneath it.
+//  A band is a second row of chrome under a large title, and between the two of
+//  them the first row of the ranking — the thing the screen is for — started a
+//  third of the way down the phone. In the bar it costs nothing, and the tab
+//  bar already says "Ranking", so the title is not missed. `HomeTabView` puts
+//  its Yours/Following switcher in the same place for the same reason.
+//
+//  Reorder scope: drag-to-reorder is enabled only on the Movies and TV tabs.
+//  There the visible list *is* the `(type, sentiment)` bucket, so a move maps
+//  1:1 onto what `RankingEngine` rescores. The All tab interleaves two
+//  independent rankings by score for browsing, so it is not a bucket and
+//  offers no Edit button — see `RankingViewModel.canReorder`. Each sentiment
+//  is its own section, so drags can never cross sentiment boundaries either.
 //
 
 import SwiftUI
@@ -36,27 +43,27 @@ struct RankingView: View {
         @Bindable var viewModel = viewModel
 
         NavigationStack {
-            VStack(spacing: 0) {
-                Picker("Type", selection: $viewModel.filter) {
-                    ForEach(RankingViewModel.TypeFilter.allCases) { filter in
-                        Text(filter.displayName).tag(filter)
+            content
+                .navigationTitle("Ranking")
+                .navigationBarTitleDisplayMode(.inline)
+                .environment(\.editMode, $editMode)
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        Picker("Type", selection: $viewModel.filter) {
+                            ForEach(RankingViewModel.TypeFilter.allCases) { filter in
+                                Text(filter.displayName).tag(filter)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: 280)
+                    }
+                    if viewModel.canReorder && !viewModel.isEmpty {
+                        ToolbarItem(placement: .topBarTrailing) { EditButton() }
                     }
                 }
-                .pickerStyle(.segmented)
-                .padding()
-
-                content
-            }
-            .navigationTitle("Ranking")
-            .environment(\.editMode, $editMode)
-            .toolbar {
-                if viewModel.canReorder && !viewModel.isEmpty {
-                    EditButton()
+                .onChange(of: viewModel.filter) { _, _ in
+                    editMode = .inactive // never stay in edit mode on a non-reorderable tab
                 }
-            }
-            .onChange(of: viewModel.filter) { _, _ in
-                editMode = .inactive // never stay in edit mode on a non-reorderable tab
-            }
         }
     }
 
@@ -99,7 +106,7 @@ struct RankingView: View {
                         NavigationLink {
                             MediaDetailView(item: item)
                         } label: {
-                            MediaRow(item: item, score: viewModel.displayScore(for: item))
+                            MediaRow(item: item, display: viewModel.scoreDisplay(for: item))
                         }
                     }
                     .onMove { offsets, destination in

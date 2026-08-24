@@ -604,3 +604,48 @@ struct TitlePredictionTests {
                     - (prediction.predicted.value - profile.baseline(for: .movie))) < 0.0001)
     }
 }
+
+// MARK: - Dismissal
+
+@Suite("RecommendationViewModel — dismissal")
+@MainActor
+struct RecommendationDismissalTests {
+
+    @Test("A dismissed title never reappears, under any mood")
+    func dismissedTitlesAreExcludedEverywhere() async throws {
+        let container = try makeContainer()
+        let library = try makeRankedLibrary(movies: 20, shows: 6, container: container)
+
+        let source = makeFullStubSource()
+        let builder = CandidatePoolBuilder(source: source, cache: makeDisabledCache())
+        let vm = RecommendationViewModel(library: library, poolBuilder: builder)
+
+        // Take a title the recommender currently offers, and refuse it.
+        let before = await vm.recommendations(type: .movie, mood: .crime, limit: 40)
+        let victim = try #require(before.recommendations.first?.item)
+        let victimID = try #require(victim.externalId)
+
+        library.dismiss(victim)
+
+        for mood in Mood.allCases {
+            let after = await vm.recommendations(type: .movie, mood: mood, limit: 40)
+            #expect(!after.recommendations.contains { $0.id == victimID },
+                    "dismissed title came back under \(mood.rawValue)")
+        }
+    }
+
+    @Test("Dismissal does not touch the ranking buckets")
+    func dismissalIsNotAnOpinion() throws {
+        // The user has not seen it. It must never acquire a sentiment, a score,
+        // or a bucket position — a filter, not a rating.
+        let library = try makeRankedLibrary()
+        let before = library.allWatched.count
+
+        let item = MediaItem(externalId: "tmdb:movie:404", title: "Refused", year: 2020, type: .movie)
+        library.dismiss(item)
+
+        #expect(library.allWatched.count == before)
+        #expect(item.score == nil)
+        #expect(item.sentiment == nil)
+    }
+}

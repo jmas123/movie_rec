@@ -374,6 +374,96 @@ struct RecommendationEngine {
         }
     }
 
+    /// Measures the model against the user's own library by cross-validation.
+    ///
+    /// This is the accountability surface: everything before it is a plausible
+    /// algorithm, and this is what says whether it is a working one.
+    func accuracy(for watched: [MediaItem]) -> PredictionAccuracy {
+        accuracy(for: watched.compactMap(RankedSnapshot.init))
+    }
+
+    func accuracy(for snapshots: [RankedSnapshot]) -> PredictionAccuracy {
+        guard snapshots.count >= 2 else { return .empty }
+
+        var predicted: [Double] = []
+        var actual: [Double] = []
+        var confidences: [Double] = []
+        var baselineNull: [Double] = []
+        var sentiments: [Sentiment?] = []
+
+        for held in snapshots {
+            let fold = snapshots.filter { $0.id != held.id }.recomputingScores()
+            let profile = buildProfile(from: fold)
+            let score = predict(held.candidate, using: profile)
+
+            predicted.append(score.value)
+            actual.append(held.score)
+            confidences.append(score.confidence)
+            baselineNull.append(profile.baseline(for: held.type))
+            sentiments.append(held.sentiment)
+        }
+
+        let n = Double(snapshots.count)
+
+        // The hard null: the midpoint of whichever bucket the user reaches for
+        // most. It encodes the one fact that carries most of the signal, which
+        // is why beating the easy null alone proves little.
+        var bucketCounts: [Sentiment: Int] = [:]
+        for sentiment in sentiments.compactMap({ $0 }) {
+            bucketCounts[sentiment, default: 0] += 1
+        }
+        let modal = bucketCounts.max { lhs, rhs in
+            lhs.value != rhs.value ? lhs.value < rhs.value : lhs.key.rawValue > rhs.key.rawValue
+        }?.key
+        let modalMidpoint = modal.map {
+            ($0.scoreRange.lowerBound + $0.scoreRange.upperBound) / 2
+        } ?? tuning.neutralScore
+
+        func mae(_ estimates: [Double]) -> Double {
+            zip(estimates, actual).reduce(0) { $0 + abs($1.0 - $1.1) } / n
+        }
+
+        // Precision@10 over the Liked bucket.
+        let byPrediction = predicted.indices.sorted { predicted[$0] > predicted[$1] }
+        let topTen = byPrediction.prefix(10)
+        let liked = topTen.filter { sentiments[$0] == .liked }.count
+        let precision = topTen.isEmpty ? nil : Double(liked) / Double(topTen.count)
+
+        return PredictionAccuracy(
+            sampleSize: snapshots.count,
+            spearman: Ranks.spearman(predicted, actual),
+            significanceThreshold: 1.96 / max(1, n - 1).squareRoot(),
+            meanAbsoluteError: mae(predicted),
+            baselineNullError: mae(baselineNull),
+            modalNullError: mae(Array(repeating: modalMidpoint, count: snapshots.count)),
+            precisionAtTen: precision,
+            errorByConfidenceDecile: Self.errorByDecile(
+                confidences: confidences, predicted: predicted, actual: actual
+            )
+        )
+    }
+
+    /// Mean absolute error per confidence decile, least confident first.
+    private static func errorByDecile(
+        confidences: [Double], predicted: [Double], actual: [Double]
+    ) -> [Double] {
+        let order = confidences.indices.sorted { confidences[$0] < confidences[$1] }
+        guard order.count >= 3 else { return [] }
+
+        // As many buckets as the sample can fill with at least three each —
+        // ten deciles over forty items would be four per bucket of pure noise.
+        let bucketCount = max(2, min(10, order.count / 3))
+        let size = Double(order.count) / Double(bucketCount)
+
+        return (0..<bucketCount).compactMap { index in
+            let lower = Int((Double(index) * size).rounded())
+            let upper = Int((Double(index + 1) * size).rounded())
+            guard upper > lower else { return nil }
+            let slice = order[lower..<upper]
+            return slice.reduce(0.0) { $0 + abs(predicted[$1] - actual[$1]) } / Double(slice.count)
+        }
+    }
+
     /// Fits the mapping from raw estimates onto this user's rating scale.
     ///
     /// Returns `.identity` for a library with nothing to learn from, which is

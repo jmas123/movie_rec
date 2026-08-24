@@ -20,6 +20,13 @@ import SwiftUI
 ///   Home, where a full-screen treatment would overwhelm the layout.
 struct EmptyStateView: View {
 
+    /// The symbol scales with Dynamic Type like everything else on the screen.
+    /// It is decorative and hidden from VoiceOver, but an empty state is
+    /// precisely where a sighted user at a large text size is being asked to
+    /// read an explanation, so the illustration should not stay 44pt while the
+    /// copy beside it grows.
+    @ScaledMetric(relativeTo: .largeTitle) private var symbolSize: CGFloat = 44
+
     /// How much room the empty state should command.
     enum Style {
         /// Large, centered — for an entire screen or tab with nothing in it.
@@ -44,9 +51,9 @@ struct EmptyStateView: View {
     // MARK: Styles
 
     private var prominentBody: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: Spacing.lg) {
             Image(systemName: systemImage)
-                .font(.system(size: 44, weight: .regular))
+                .font(.system(size: symbolSize, weight: .regular))
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
 
@@ -58,15 +65,15 @@ struct EmptyStateView: View {
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
                     .buttonStyle(.borderedProminent)
-                    .padding(.top, 4)
+                    .padding(.top, Spacing.xs)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(24)
+        .padding(Spacing.section)
     }
 
     private var inlineBody: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Spacing.md) {
             Image(systemName: systemImage)
                 .font(.title3)
                 .foregroundStyle(.secondary)

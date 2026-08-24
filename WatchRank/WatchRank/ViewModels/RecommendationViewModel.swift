@@ -284,12 +284,12 @@ final class RecommendationViewModel {
 
     /// Titles the user has already dealt with.
     ///
-    /// Watched only. `.wantToWatch` is deliberately *kept* — the user asked for
-    /// unwatched titles and a queued one is unwatched — and flagged on the
-    /// `Recommendation` instead. Dismissals join this set in roadmap Phase 17.
+    /// Watched or dismissed. `.wantToWatch` is deliberately *kept* — the user
+    /// asked for unwatched titles and a queued one is unwatched — and flagged
+    /// on the `Recommendation` instead.
     private func excludedExternalIds() -> Set<String> {
         Set(library.allItems
-            .filter { $0.watchedStatus == .watched }
+            .filter { $0.watchedStatus == .watched || $0.dismissed }
             .compactMap(\.externalId)
             .map(ExternalID.canonical))
     }

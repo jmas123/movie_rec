@@ -83,12 +83,12 @@ struct MediaDetailView: View {
     // MARK: Header
 
     private var header: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: Spacing.lg) {
             PosterPlaceholder(title: item.title)
                 .frame(width: 160, height: 240)
                 .shadow(radius: 8, y: 4)
 
-            VStack(spacing: 4) {
+            VStack(spacing: Spacing.xs) {
                 Text(item.title)
                     .font(.title2.weight(.bold))
                     .multilineTextAlignment(.center)
@@ -132,7 +132,7 @@ struct MediaDetailView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .padding(.vertical, Spacing.sm)
         // Combining would read "8.4, #2 in Liked it" — a bare number with no
         // scale and a "#" the synthesizer stumbles over. Say it in words.
         .accessibilityElement(children: .ignore)
@@ -248,7 +248,7 @@ struct MediaDetailView: View {
     // MARK: Overview
 
     private var overviewSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
             Text("Overview")
                 .font(.headline)
             Text(item.overview)
@@ -262,11 +262,11 @@ struct MediaDetailView: View {
 
     private var genreSection: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: Spacing.sm) {
                 ForEach(item.genres, id: \.self) { genre in
                     Text(genre)
                         .font(.caption.weight(.medium))
-                        .padding(.horizontal, 12)
+                        .padding(.horizontal, Spacing.md)
                         .padding(.vertical, 6)
                         .background(Color(.secondarySystemBackground), in: Capsule())
                 }
@@ -279,7 +279,7 @@ struct MediaDetailView: View {
     // MARK: Review
 
     private func reviewSection(_ review: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
             Text("Your Review")
                 .font(.headline)
             Text(review)
@@ -293,7 +293,7 @@ struct MediaDetailView: View {
 
     @ViewBuilder
     private var actionSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: Spacing.md) {
             switch item.watchedStatus {
             case .untracked:
                 markWatchedButton
@@ -310,7 +310,7 @@ struct MediaDetailView: View {
                 reRankButton
             }
         }
-        .padding(.top, 4)
+        .padding(.top, Spacing.xs)
     }
 
     private var markWatchedButton: some View {
@@ -364,7 +364,7 @@ struct MediaDetailView: View {
 
     private var sentimentSheet: some View {
         NavigationStack {
-            VStack(spacing: 16) {
+            VStack(spacing: Spacing.lg) {
                 SentimentPicker(selection: $draftSentiment)
                 Spacer(minLength: 0)
             }
@@ -431,7 +431,7 @@ struct MediaDetailView: View {
 
     private func scoreString(_ score: Double?) -> String {
         guard let score else { return "—" }
-        return MediaRow.scoreFormatter.string(from: score as NSNumber) ?? "—"
+        return ScoreDisplay.formatter.string(from: score as NSNumber) ?? "—"
     }
 }
 
@@ -443,7 +443,7 @@ extension MediaLibraryViewModel {
     /// with items. Preview-only: force-try is acceptable here.
     static func previewInMemory(seed: [MediaItem] = []) -> MediaLibraryViewModel {
         let container = try! ModelContainer(
-            for: MediaItem.self,
+            for: MediaItem.self, PendingPublish.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         seed.forEach { container.mainContext.insert($0) }

@@ -23,6 +23,7 @@ struct RecommendationRow: View {
 
     let recommendation: Recommendation
     var onQueue: (() -> Void)?
+    var onDismiss: (() -> Void)?
 
     private var display: PredictionDisplay {
         PredictionDisplay(predicted: recommendation.predicted, lift: recommendation.lift)
@@ -72,6 +73,16 @@ struct RecommendationRow: View {
                 }
                 .tint(.accentColor)
             }
+            if let onDismiss {
+                // The only negative signal available without asking the user to
+                // rate something they have not seen. Destructive styling because
+                // it removes the row, not because it is dangerous.
+                Button(role: .destructive) {
+                    onDismiss()
+                } label: {
+                    Label("Not for me", systemImage: "hand.thumbsdown")
+                }
+            }
         }
     }
 
@@ -113,14 +124,18 @@ private struct PredictedBadge: View {
 
     let display: PredictionDisplay
 
+    /// The badge's floor width, scaled with the type inside it — a fixed 64pt
+    /// would clip "Probably not for you" the moment the text grew.
+    @ScaledMetric(relativeTo: .caption2) private var minimumWidth: CGFloat = 64
+
     var body: some View {
         VStack(spacing: 2) {
             switch display {
             case .score(let value):
-                Text(MediaRow.scoreFormatter.string(from: value as NSNumber) ?? "—")
+                Text(ScoreDisplay.formatter.string(from: value as NSNumber) ?? "—")
                     .font(.callout.weight(.bold).monospacedDigit())
                 Text("predicted")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .textCase(.uppercase)
                     .foregroundStyle(.secondary)
 
@@ -128,7 +143,7 @@ private struct PredictedBadge: View {
                 Image(systemName: band.symbolName)
                     .font(.callout.weight(.semibold))
                 Text(band.label)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
             }
@@ -136,11 +151,17 @@ private struct PredictedBadge: View {
         .foregroundStyle(Color.accentColor)
         .padding(.horizontal, Spacing.sm)
         .padding(.vertical, 6)
-        .frame(minWidth: 64)
+        .frame(minWidth: minimumWidth)
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(Color.accentColor.opacity(0.5), lineWidth: 1.5)
         }
+        // Capped, unusually — a trailing badge that keeps growing eats the
+        // title it belongs to. Nothing is lost by it: the badge is hidden from
+        // VoiceOver and every word in it is already spoken by the row's own
+        // label, so a user who needs the largest sizes reads the content in
+        // the row, not the pill.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .accessibilityHidden(true)
     }
 }

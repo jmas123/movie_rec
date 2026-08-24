@@ -7,6 +7,10 @@
 //  No view model — the rails read straight off `MediaLibraryViewModel` from the
 //  environment, so they update live as the ranking changes.
 //
+//  The screen supplies no `NavigationStack` or title of its own: `HomeTabView`
+//  owns both, because it shares one navigation bar with the feed and puts the
+//  Yours/Following switcher in it. Two stacks would mean two bars.
+//
 
 import SwiftUI
 
@@ -22,42 +26,39 @@ struct HomeView: View {
     @State private var showSearch = false
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.section) {
-                    rail(
-                        "Top Movies",
-                        systemImage: "film",
-                        emptyMessage: "Rank some movies to see your top picks.",
-                        items: library.topMovies
-                    )
-                    rail(
-                        "Top TV Shows",
-                        systemImage: "tv",
-                        emptyMessage: "Rank some shows to see your top picks.",
-                        items: library.topShows
-                    )
-                    rail(
-                        "Recently Watched",
-                        systemImage: "clock",
-                        emptyMessage: "Nothing watched yet.",
-                        items: library.recentlyWatched
-                    )
-                    rail(
-                        "Want to Watch",
-                        systemImage: "bookmark",
-                        emptyMessage: "Your watchlist is empty.",
-                        items: library.wantToWatch
-                    )
-                }
-                .padding(.vertical)
-                .padding(.bottom, Spacing.floatingButtonClearance)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.section) {
+                rail(
+                    "Top Movies",
+                    systemImage: "film",
+                    emptyMessage: "Rank some movies to see your top picks.",
+                    items: library.topMovies
+                )
+                rail(
+                    "Top TV Shows",
+                    systemImage: "tv",
+                    emptyMessage: "Rank some shows to see your top picks.",
+                    items: library.topShows
+                )
+                rail(
+                    "Recently Watched",
+                    systemImage: "clock",
+                    emptyMessage: "Nothing watched yet.",
+                    items: library.recentlyWatched
+                )
+                rail(
+                    "Want to Watch",
+                    systemImage: "bookmark",
+                    emptyMessage: "Your watchlist is empty.",
+                    items: library.wantToWatch
+                )
             }
-            .navigationTitle("WatchRank")
-            .overlay(alignment: .bottomTrailing) { addButton }
-            .sheet(isPresented: $showSearch) {
-                SearchView(service: service)
-            }
+            .padding(.vertical)
+            .padding(.bottom, Spacing.floatingButtonClearance)
+        }
+        .overlay(alignment: .bottomTrailing) { addButton }
+        .sheet(isPresented: $showSearch) {
+            SearchView(service: service)
         }
     }
 
@@ -69,7 +70,7 @@ struct HomeView: View {
         emptyMessage: String,
         items: [MediaItem]
     ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Spacing.md) {
             Text(title)
                 .font(.title3.weight(.bold))
                 .padding(.horizontal)
@@ -147,12 +148,12 @@ private func homePreviewLibrary() -> MediaLibraryViewModel {
 
 #Preview {
     let library = homePreviewLibrary()
-    return HomeView(service: MockMediaService())
+    return NavigationStack { HomeView(service: MockMediaService()) }
         .environment(library)
 }
 
 #Preview("Empty") {
-    HomeView(service: MockMediaService())
+    NavigationStack { HomeView(service: MockMediaService()) }
         .environment(MediaLibraryViewModel.previewInMemory())
 }
 #endif

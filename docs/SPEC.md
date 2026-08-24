@@ -8,6 +8,16 @@ SwiftData for persistence (local-only through v1.1)
 No third-party dependencies
 No authentication, no social features, no recommendations in this MVP
 
+> **Superseded for v1.1 as well.** Recommendations shipped in Part II: TMDB is
+> the live catalog (metadata only), and predicted ratings are computed **on
+> device** from the user's own rankings. No user data leaves the device in v1.1.
+> The algorithm in three sentences: each watched title contributes a residual
+> against its media type's baseline; those residuals are averaged per metadata
+> feature and shrunk toward zero by how little evidence supports them; a
+> candidate's prediction is its type baseline plus a family-weighted mean of its
+> features' effects, mapped onto the user's own scale by a calibration learned
+> from leave-one-out error.
+>
 > **Superseded for v2.0.** The last line describes the v1.0 MVP and still holds for it. v1.1 adds recommendations (roadmap Part II) and v2.0 adds accounts, follows, an activity feed and comments (roadmap Part III), which lifts the local-only constraint: a user's published ranking leaves the device. The ranking mechanic below is unchanged by both — scores stay derived from bucket position and the engine stays pure and local. See `PART-III-SOCIAL.md`.
 
 Core ranking system (critical, do not deviate)
