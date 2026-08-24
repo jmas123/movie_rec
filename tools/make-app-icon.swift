@@ -1,6 +1,6 @@
 //
 //  make-app-icon.swift
-//  WatchRank
+//  Binged
 //
 //  Regenerates the three App Icon variants into the asset catalogue.
 //
@@ -55,6 +55,16 @@ enum Variant {
     /// Only the light variant paints a background; see the file header.
     var paintsBackground: Bool { self == .light }
 
+    /// The primary icon must ship **without** an alpha channel — App Store
+    /// validation rejects a transparent primary outright, and "opaque pixels"
+    /// is not the same claim as "no alpha channel". Dark and tinted are the
+    /// exception: their transparency is the point.
+    var bitmapInfo: UInt32 {
+        paintsBackground
+            ? CGImageAlphaInfo.noneSkipLast.rawValue
+            : CGImageAlphaInfo.premultipliedLast.rawValue
+    }
+
     /// Row opacities, brightest first — the descending weight is what reads as
     /// rank rather than as a bar chart.
     var barAlphas: [Double] {
@@ -67,7 +77,7 @@ enum Variant {
     }
 }
 
-func makeContext() -> CGContext? {
+func makeContext(for variant: Variant) -> CGContext? {
     CGContext(
         data: nil,
         width: side,
@@ -75,7 +85,7 @@ func makeContext() -> CGContext? {
         bitsPerComponent: 8,
         bytesPerRow: 0,
         space: CGColorSpaceCreateDeviceRGB(),
-        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        bitmapInfo: variant.bitmapInfo
     )
 }
 
@@ -134,7 +144,7 @@ func write(_ image: CGImage, to url: URL) throws {
 // MARK: - Main
 
 let iconSet = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-    .appendingPathComponent("WatchRank/WatchRank/Assets.xcassets/AppIcon.appiconset")
+    .appendingPathComponent("Binged/Binged/Assets.xcassets/AppIcon.appiconset")
 
 guard FileManager.default.fileExists(atPath: iconSet.path) else {
     // Fail loudly: a silent no-op here would leave the catalogue empty and the
@@ -146,7 +156,7 @@ guard FileManager.default.fileExists(atPath: iconSet.path) else {
 }
 
 for variant in [Variant.light, .dark, .tinted] {
-    guard let context = makeContext() else {
+    guard let context = makeContext(for: variant) else {
         FileHandle.standardError.write(Data("Could not create a bitmap context.\n".utf8))
         exit(1)
     }

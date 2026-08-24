@@ -1,14 +1,14 @@
-# WatchRank
+# Binged
 
 ## Project summary
 
-WatchRank is a local-only iOS MVP for ranking movies and TV shows in the style of Beli. Instead of asking the user to type a numeric rating, the app captures a coarse sentiment (Liked / Fine / Disliked) and then runs a pairwise binary-insertion comparison flow against existing items in the same sentiment bucket. A 0–10 score is derived from each item's final position within its bucket — scores are never entered by the user. The v1.0 MVP has no backend, no auth, no social features, and no recommendations. **v1.1 (Part II) adds recommendations; v2.0 (Part III) adds the social layer — accounts, follows, an activity feed, comments — and lifts the local-only constraint.** See [`docs/PART-III-SOCIAL.md`](./docs/PART-III-SOCIAL.md) for the architecture and [`docs/ROADMAP.md`](./docs/ROADMAP.md) Phases 20–28 for the plan. The ranking mechanic below is unchanged by any of it.
+Binged is an iOS app for ranking movies and TV shows in the style of Beli, local-first and — from Part IV — account-backed. Instead of asking the user to type a numeric rating, the app captures a coarse sentiment (Liked / Fine / Disliked) and then runs a pairwise binary-insertion comparison flow against existing items in the same sentiment bucket. A 0–10 score is derived from each item's final position within its bucket — scores are never entered by the user. The v1.0 MVP has no backend, no auth, no social features, and no recommendations. **v1.1 (Part II) adds recommendations; v2.0 (Part III) adds the social layer — accounts, follows, an activity feed, comments — and lifts the local-only constraint; Part IV makes the account the user's library, syncing it unconditionally while signed in so a second device restores it.** See [`docs/PART-III-SOCIAL.md`](./docs/PART-III-SOCIAL.md) and [`docs/PART-IV-SYNC.md`](./docs/PART-IV-SYNC.md) for the architecture, and [`docs/ROADMAP.md`](./docs/ROADMAP.md) Phases 20–29 for the plan. The ranking mechanic below is unchanged by any of it.
 
 ## Tech stack
 
 - SwiftUI (UI)
 - MVVM (architecture)
-- SwiftData (persistence, local-only)
+- SwiftData (persistence; the device's copy, and the one the ranking flow reads and writes)
 - iOS 17+ deployment target
 - Swift 5.9+
 - Zero third-party dependencies
@@ -17,40 +17,38 @@ WatchRank is a local-only iOS MVP for ranking movies and TV shows in the style o
 ## File structure
 
 ```
-WatchRank/
-  App/
-    WatchRankApp.swift
-    RootTabView.swift
-  Models/
-    MediaItem.swift
-    MediaType.swift
-    WatchedStatus.swift
-    Sentiment.swift
-  Views/
-    Home/HomeView.swift
-    Search/SearchView.swift
-    Detail/MediaDetailView.swift
-    Ranking/RankingView.swift
-    Compare/CompareView.swift
-    Profile/ProfileView.swift
-  Components/
-    MediaCard.swift
-    MediaRow.swift
-    PosterPlaceholder.swift
-    EmptyStateView.swift
-    SentimentPicker.swift
-  ViewModels/
-    MediaLibraryViewModel.swift
-    SearchViewModel.swift
-    RankingViewModel.swift
-    CompareViewModel.swift
-  Services/
-    MediaService.swift        // protocol
-    MockMediaService.swift
-    RankingEngine.swift       // binary insertion + score recomputation
-  Resources/
-    MockMedia.json
+Binged/Binged/
+  BingedApp.swift        // composition root: container, catalog, social stack, sync
+  App/RootTabView.swift
+  Models/          (27)  MediaItem, MediaType, Sentiment, WatchedStatus,
+                         ScoreDisplay, PredictionDisplay, TasteProfile,
+                         FeedPost, UserProfile, PendingPublish, BingedSchema, …
+  Views/           (17)  Home, Search, Detail, Ranking, Compare, Profile,
+                         Discover, Auth, Social, Feed, Post, Settings, Recovery
+  Components/       (6)  MediaCard, MediaRow, PosterPlaceholder,
+                         EmptyStateView, SentimentPicker, Spacing
+  ViewModels/      (11)  MediaLibrary, Search, Ranking, Compare, Recommendation,
+                         Session, Feed, Post, UserProfile, UserSearch
+  Services/        (29)  RankingEngine (pure), MediaService + TMDB*,
+                         RecommendationEngine, CandidatePoolBuilder,
+                         AuthService, SocialService, FeedService,
+                         SyncEngine + PublishConsent, LibraryMerge (pure),
+                         LibraryRestoreService, LibraryRestorer,
+                         Supabase/ (5), and a Mock… sibling for every protocol
+  Resources/             MockMedia.json
+  PrivacyInfo.xcprivacy
+supabase/
+  migrations/       (7)  social, moderation, client_rpcs, follow_list_rpcs,
+                         library_sync, fix_is_published_privileges, blocked_accounts
+  tests/rls_test.sql     33 pgTAP assertions, mostly negative
 ```
+
+**Not exhaustive — 85 Swift files and growing.** The shape is what matters:
+one primary type per file, every protocol in `Services/` has a `Mock…` sibling
+so no test touches the network, and the two files with genuinely tricky logic —
+`RankingEngine` and `LibraryMerge` — are pure, synchronous and free of
+SwiftData, which is why their tests need no container.
+
 
 ## Ranking rules (Beli-style — do not deviate)
 
@@ -80,7 +78,7 @@ WatchRank/
 
 - **One primary type per file.** A file named `Foo.swift` defines `Foo`. Small helpers tightly coupled to that type are fine in the same file.
 - **Section headers** use `// MARK: - Section Name`.
-- **No force unwraps** (`!`) in non-test code. Use `guard let`, `if let`, nil-coalescing, or fail loudly with a thrown error. Force-unwraps are tolerated inside `WatchRankTests` only.
+- **No force unwraps** (`!`) in non-test code. Use `guard let`, `if let`, nil-coalescing, or fail loudly with a thrown error. Force-unwraps are tolerated inside `BingedTests` only.
 - **Prefer value types** (structs, enums) for everything that isn't a SwiftData `@Model` or doesn't need reference semantics.
 - **Use the `@Observable` macro** for view models — not `ObservableObject` + `@Published`.
 - **SwiftUI view names are descriptive.** `MediaDetailView`, `SentimentPicker`, `EmptyStateView` — never bare `DetailView` or `Picker`.
@@ -89,29 +87,46 @@ WatchRank/
 
 ```bash
 # Build
-xcodebuild -scheme WatchRank -destination 'platform=iOS Simulator,name=iPhone 16' build
+xcodebuild -scheme Binged -destination 'platform=iOS Simulator,name=iPhone 16' build
 
 # Test
-xcodebuild -scheme WatchRank -destination 'platform=iOS Simulator,name=iPhone 16' test
+xcodebuild -scheme Binged -destination 'platform=iOS Simulator,name=iPhone 16' test
 ```
 
 ## Do not
 
 - Do not add third-party libraries or Swift Package Manager dependencies.
-- **Network code lives behind a protocol in `Services/`, always.** TMDB is the live catalog (Part II, Phase 12) behind `MediaService`; Supabase is auth and the social graph (Part III, Phases 20+) behind `AuthService` and `SocialService`. Nothing outside `Services/` may know a URL exists, and every one of them has a `Mock…` sibling so no test touches the network.
-- ~~User data stays local-only and never leaves the device.~~ **No longer true from Phase 23.** A user's *published* ranking, reviews, profile and comments go to Supabase under an account. What still never leaves the device: untracked items, items with a nil `externalId`, and anything at all while the user is signed out. Publishing is opt-in and never silent — see `docs/PART-III-SOCIAL.md` §8 and §13.
+- **Network code lives behind a protocol in `Services/`, always.** TMDB is the live catalog (Part II, Phase 12) behind `MediaService`; Supabase is auth and the social graph (Part III, Phases 20+) behind `AuthService` and `SocialService`, and library sync (Part IV) behind `PublishTransport`. Nothing outside `Services/` may know a URL exists, and every one of them has a `Mock…` sibling so no test touches the network.
+- ~~User data stays local-only and never leaves the device.~~ ~~No longer true from Phase 23: *published* data goes to Supabase.~~ **Rewritten again for Part IV — read this one carefully, because the previous two versions are the kind of stale privacy copy that gets repeated into a privacy policy.**
+
+  **While signed in, the whole ranked library goes to the user's own account — always, with no opt-in.** That is what makes signing in on a second device restore it. Consent does *not* gate whether data reaches the server; it gates `is_published`, which decides whether anybody **else** can see it. The two questions are different and must never be worded as one (`docs/PART-IV-SYNC.md` §3).
+
+  So the honest inventory is:
+  - **Never leaves the device, ever:** items with a nil `externalId` (nothing to key them to), and everything at all while signed out.
+  - **Goes to the user's own account, unconditionally, once signed in:** every watched, ranked item with an `externalId`.
+  - **Visible to other people only after an explicit yes:** the same rows, once `is_published` is true. Default false, per bucket, all-or-nothing.
+
+  Two consequences for anything you write. **Never tell the user their ranking "stays on this device" when they are signed in** — it is false, and a consent sheet that says it is trading a false statement for a yes. Sync is disclosed at account creation instead. And **withdrawing consent hides rows; it never deletes them** — deleting would destroy the backup the user did not ask to lose.
 - **Do not let the social layer touch the ranking mechanic.** `RankingEngine` stays pure, synchronous and local; scores stay derived from bucket position; the comparison flow never awaits a network call; and the entire app stays usable signed out. These are invariants, not preferences (`PART-III-SOCIAL.md` §2).
 - **Do not trust the client for authorisation.** The Supabase anon key ships in the bundle by design and carries no privilege — row-level security in Postgres is the whole security boundary. Any rule the app enforces must also exist as a policy, or it does not exist.
 - Do not let the user enter a numeric rating directly. Scores are derived from bucket position.
 - The project uses `PBXFileSystemSynchronizedRootGroup`, so files added on disk are picked up by the target automatically — no manual drag-into-Xcode step. Editing `project.pbxproj` is allowed when a build-level change genuinely requires it (e.g., the `EXCLUDED_SOURCE_FILE_NAMES = .gitkeep` rule that keeps empty-folder markers out of the app bundle).
-- Do not modify `WatchRankApp.swift` or `ContentView.swift` until the UI phase. The foundation phase leaves the existing app entry point untouched.
+- ~~Do not modify `BingedApp.swift` or `ContentView.swift` until the UI phase.~~ **Spent — the UI phase was Phase 10.** `BingedApp` is now where the catalog, the recommender, the social stack and the sync engine are assembled, and it is edited routinely. What replaces the rule: it is a *wiring* file, so composition belongs there and logic does not. If something in it needs a test, it is in the wrong file. Concurrent sessions edit it often — re-read before editing rather than working from a copy in context.
 
 ## SwiftData schema changes during dev
 
-The MVP does not implement a migration plan. Whenever `MediaItem`'s shape changes — added/removed/renamed properties, type changes, new relationships — **delete the app from the iOS simulator before running again**. SwiftData will otherwise fail to open the existing store and the app will crash on launch. Real migrations are a v1.2 concern; do not invest in them now.
+~~The MVP does not implement a migration plan.~~ **It does now** — `Models/BingedSchema.swift` defines `BingedSchemaV1` and `BingedMigrationPlan`, and `BingedApp` opens the store through it.
+
+Additive changes (a new optional property, a new `@Model` entity) lightweight-migrate and need nothing. **Renames, type changes and deletions still need a new `VersionedSchema` plus a migration stage** — and until you have written one, deleting the app from the simulator remains the fastest way to get moving again during development. What is no longer acceptable is adding a property and hoping: the plan exists, so the shape change belongs in it.
+
+**Do not add a second `VersionedSchema` that lists the same live model types.** Two versions both naming `MediaItem.self` describe the same shape, compute the same version checksum, and `NSLightweightMigrationStage` throws when `from == to`. That throw happens inside `BingedApp.init()`, so the app aborts with SIGABRT before drawing a frame, and `StoreRecoveryView` cannot catch it — it guards `ModelContainer` creation, and this fails one line earlier. A real version needs a **frozen copy** of each changed model (a `MediaItemV1` `@Model` carrying the old property list), with only the newest version referring to the live type. That is worth paying the moment a build ships and not before. This crashed the app on 2026-08-23; the full write-up is in `Models/BingedSchema.swift`.
+
+**The unit suite cannot catch that class of bug.** No test calls `BingedApp.init()`, so the entire composition root — container, schema, service wiring — is unexercised by 539 green tests. After touching the schema or app startup, run the app or the full test plan, not `-testPlan BingedUnit`.
 
 ## Current scope
 
 Part I (Phases 0–10) ships: models, `RankingEngine`, services, view models, and all screens, wired and verified on the iPhone 16 simulator. Part II is mid-stream — Phases 12, 12a and 13 (TMDB catalog, feature extraction, prediction engine) are done; **Phases 14–19 are the current work**.
 
 **Part III (social) starts after Phase 19** and is planned, not started. Do not begin social work while Part II is open unless explicitly asked.
+
+**Amended 2026-08-23:** Part III shipped through Phase 28, and Phase 29 wired the publish loop into the running app. Part IV (unconditional library sync, restore on a second device) is in progress across concurrent sessions — see `docs/PART-IV-SYNC.md` for the split.

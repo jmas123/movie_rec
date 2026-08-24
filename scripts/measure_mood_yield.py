@@ -56,7 +56,7 @@ from pathlib import Path
 
 API = "https://api.themoviedb.org/3"
 REPO = Path(__file__).resolve().parent.parent
-SECRETS = REPO / "WatchRank" / "Config" / "Secrets.xcconfig"
+SECRETS = REPO / "Binged" / "Config" / "Secrets.xcconfig"
 TYPES = ("movie", "tv")
 
 # Reuse the credential handling and HTTP client from the Phase 12 script rather

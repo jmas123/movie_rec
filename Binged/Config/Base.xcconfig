@@ -1,0 +1,48 @@
+//
+//  Base.xcconfig
+//  Binged
+//
+//  Build settings that need to come from outside the project file: the TMDB
+//  credential, and the Supabase project URL + anon key (roadmap Part III).
+//
+//  The secret itself lives in Secrets.xcconfig, which is gitignored. The
+//  include below is optional (`#include?`), so a fresh clone with no secrets
+//  file still builds — TMDB_READ_TOKEN is simply undefined, the Info.plist key
+//  comes out empty, and the app falls back to MockMediaService. An unconfigured
+//  checkout is a supported state, not a broken one.
+//
+//  To configure: copy Secrets.xcconfig.example to Secrets.xcconfig and paste in
+//  your TMDB v4 read access token and, for social, your Supabase URL and anon
+//  key. Any subset may be left unset; each feature falls back independently.
+//
+
+#include? "Secrets.xcconfig"
+
+// MARK: - Version
+//
+// Kept here rather than in project.pbxproj, where these two lived duplicated
+// across the Debug and Release configurations and consequently never moved off
+// 1.0/1 through Parts I, II and III — Settings would have told a user "1.0" for
+// what the docs call v2.0.
+//
+// MARKETING_VERSION is what the App Store and Settings show. Bump it when the
+// product changes. CURRENT_PROJECT_VERSION must be unique for every build
+// uploaded to TestFlight under the same marketing version — bump it on every
+// upload, and reset it to 1 when MARKETING_VERSION changes.
+MARKETING_VERSION = 2.0
+CURRENT_PROJECT_VERSION = 1
+
+// Surfaces the token to the app through the Info.plist, where
+// TMDBConfiguration reads it back at runtime.
+//
+// This has to go through a partial Info.plist rather than the tidier
+// INFOPLIST_KEY_TMDBReadToken: Xcode only maps a fixed allow-list of
+// Apple-defined keys through INFOPLIST_KEY_*, and silently drops custom ones —
+// the build still succeeds, the key just never appears in the bundle.
+// GENERATE_INFOPLIST_FILE stays YES; Xcode merges its synthesised keys on top
+// of the file named here.
+//
+// Note this puts the token in the built bundle, which is extractable by anyone
+// with the .app. That is acceptable for a locally-installed development build
+// and is not acceptable for distribution — see roadmap open question 11.
+INFOPLIST_FILE = Config/Info.plist

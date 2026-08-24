@@ -293,6 +293,16 @@ appear — which is itself worth confirming once.
 > fresh install. If you cannot create an account, that is the known finding, not
 > a new one — stop and fix that before running the rest of this journey.
 
+> **Deploy the schema before you start.** `supabase db push` — the RPCs the app
+> calls (`feed_page`, `author_posts`, the follow lists) live in migrations that
+> postdate the Phase 20 run. If they are missing, the feed fails and the app
+> renders the failure as an error, which reads as a client bug and is not one.
+
+> **Two accounts are not optional.** The feed is drawn from people you follow
+> and `follows_no_self` forbids following yourself, so a single account can
+> never see anything in its own Following tab. Sign out and back in on one
+> simulator, or run two.
+
 ### 7a. Signed out is a complete app
 
 The rule the whole architecture rests on: everything that worked in v1.0 still
@@ -316,15 +326,54 @@ works with no account.
    flash its signed-out empty state on the way — sign-in is restored
    asynchronously, and `FeedView` keys its load on the session for this reason.
 
-### 7c. Publishing is opt-in and never silent
+### 7c. Sharing is opt-in; syncing is not
 
-1. With a library already ranked, sign in for the first time.
-2. **Expect:** nothing is published automatically. Publishing is a decision the
-   user makes, and a first sign-in that quietly uploaded a library would be the
-   single worst bug in this app.
-3. Publish deliberately. Then check on a second account (or signed out, from a
-   public profile) that untracked titles and titles with no `externalId` did
-   **not** travel.
+**Read this distinction before running the steps, because the pass/fail flips
+on it** (`PART-IV-SYNC.md` §3). A signed-in user's library goes to *their own
+account* unconditionally — that is what makes signing in on a second device
+restore it. What the consent sheet decides is whether anybody **else** can see
+it, and that answer travels as `is_published` on every row.
+
+So "did anything upload?" is the wrong question. The right ones are "can a
+second account see it?" and "did my own library survive?".
+
+> **No longer blocked.** All seven migrations are applied to the hosted project,
+> and the privilege state was verified directly on 2026-08-24: `authenticated`
+> holds INSERT and SELECT on `ranked_items.is_published` and **no UPDATE**. If a
+> publish fails now, suspect the client, not the schema — which is the reverse
+> of what this note used to say.
+
+1. With a library already ranked, sign in for the first time. **Expect:** the
+   sharing sheet — "Let followers see your ranking?" — stating a **count** of
+   titles. Check the count against what you have actually ranked.
+2. Choose **Keep it private**. **Expect:** from a second account, your profile
+   shows no ranking. From *your own* account, everything is intact.
+3. Settings → Sharing reads **Visible to followers: No**, and the footer still
+   says your account keeps your library. **A screen that reads "nothing is
+   uploaded" here is a bug** — that sentence was true before this change and is
+   false now.
+4. **The refusal must not have cost you the backup.** This is the whole point
+   of the inversion and needs a real check: sign out, sign back in on a second
+   simulator, and confirm your ranking restores. Until the restore path exists
+   (`PART-IV-SYNC.md` phase 31), check the `ranked_items` rows in the Supabase
+   dashboard instead — they must be there, with `is_published = false`.
+5. Now tap **Show My Followers**. **Expect:** the second account sees the whole
+   ranking, including titles ranked *before* you answered.
+6. Check that untracked titles, and titles with no `externalId`, are absent.
+   Settings states that second count in words; it must match what is missing.
+7. **Hide My Ranking.** Confirm the alert, then check from the second account
+   that the ranking is gone — and in the dashboard that **the rows are still
+   there** with `is_published = false`. Hiding that deletes rows is a data-loss
+   bug, not a tidy implementation.
+8. **A second account on the same phone is asked again.** Sign out, sign into
+   another account, and expect the sheet — never an inherited answer.
+9. **Mid-comparison is not sent.** Start ranking a title into a non-empty bucket
+   and leave the comparison modal open. Nothing should sync while it is open;
+   finishing it should send the whole bucket at once. This is the one case where
+   "nothing happened" is the pass.
+10. **Offline.** Airplane mode, rank a title. The comparison flow runs at local
+    speed. Turn the network back on without touching the app: the sync should
+    drain on its own.
 
 ### 7d. Follow, feed, comment
 
@@ -363,3 +412,78 @@ The ranking mechanic is not allowed to change because a social layer exists.
 2. Every spinner announces what it is loading, not a bare "in progress".
 3. Largest accessibility text size across the feed card and the profile header.
 
+### 7h. The five-minute version, with no server at all
+
+Not a substitute for the walk above — it proves nothing about the schema or the
+policies, which is the entire point of running against a real project. It is
+for looking at the screens.
+
+```bash
+xcrun simctl launch --terminate-running-process booted Jude.WatchRank -uiTestingMockSocial
+```
+
+Comes up signed in as `@you` against `MockSocialFixture`: four people, seven
+posts across all three kinds, a comment thread containing a deleted comment,
+reactions, and three published libraries that straddle the five-title score
+threshold. Publishing goes to `MockPublishTransport` and reaches nothing.
+
+1. Home → **Following**: a populated feed. Every card renders, the bucket-of-one
+   post shows no position, and counts are non-zero.
+2. Open a post: the thread, "Comment deleted" in place, and a working composer.
+3. Tap through to a profile: Mina's shows scores, Devon's shows positions only,
+   Sasha's reads as private.
+4. The sharing sheet appears at launch, over your real library, with your real
+   count. Answer it either way and check Settings reflects the answer. Note the
+   fixture's transport reaches nothing, so this proves the copy and the wiring,
+   never the schema.
+
+The fixture's viewer id is new on every launch, so it asks again every time —
+that is the per-account rule working, not a bug.
+
+### 7i. Two devices — the thing Part IV exists for
+
+**This is the journey nothing else covers.** Every automated test merges against
+a mock; the merge has never met a real second device, a real network, or a real
+`updated_at`. Run it last, and run it on a quiet machine — a simulator starved
+of CPU produces failures indistinguishable from real ones.
+
+You need two simulators, or one simulator and a delete-and-reinstall between
+steps. Call them A and B.
+
+**Setup.** On A: sign in, rank at least five films so a bucket has earned a
+score, and queue two more. Confirm they reach the account (7c).
+
+1. **Restore onto an empty device.** Install fresh on B and sign in with the
+   same account. **Expect:** the library appears — ranked titles in the right
+   sentiment buckets, in the right order, and the queue too. Scores are
+   *recomputed locally*, so check they sit inside the right band rather than
+   expecting the exact numbers from A.
+2. **Nothing was lost on the way.** Count titles on B against A. A title that
+   never had an `externalId` will be missing, and the app should **say so**
+   rather than leave a silent gap — that is `unsyncableCount` surfacing. A gap
+   with no explanation is a bug; a stated one is the design.
+3. **Merge, not replace.** On B, before signing in, rank two films A has never
+   seen. *Then* sign in. **Expect:** B ends with both libraries. Nothing from
+   either side is discarded. This is the single most important assertion in this
+   journey — the failure it guards is a device quietly overwriting an account.
+4. **Position disagreements resolve silently.** Reorder a bucket on A, let it
+   sync, then foreground B. **Expect:** B follows, with no prompt. Position is
+   derived, never chosen (rule 4), so there is nothing to ask about.
+5. **Sentiment disagreements take the newest deliberate act.** Re-rate one film
+   Liked → Fine on B. Then, on A *without* letting it sync first, re-rate the
+   same film Liked → Didn't like it. Foreground both. **Expect:** the later
+   re-rate wins on both devices. A stale device must not overwrite a newer
+   decision — that is `lastRankedAt` against the row's `updated_at`.
+6. **Both buckets rescore.** After step 5, check the bucket the film *left* as
+   well as the one it joined. Scores in the vacated bucket must have recomputed
+   for its new size. This is the vacated-bucket bug with a network in the
+   middle, and it is the one most likely to be wrong.
+7. **An unreachable account is not an empty one.** Put B in airplane mode and
+   sign in. **Expect:** an explicit "could not reach your account" message and
+   an **unchanged** local library. What must never happen: B treating the
+   failure as an empty account and pushing itself over A's library. If B ends up
+   with fewer titles than it started with, stop and report it.
+8. **Sharing survives a merge.** With sharing on, rank a title in a bucket B has
+   never published. **Expect:** it is visible to a second account. A bucket that
+   arrives by merge must adopt the account's standing answer, not default to
+   private — the failure mode is "sometimes my shows don't show up".

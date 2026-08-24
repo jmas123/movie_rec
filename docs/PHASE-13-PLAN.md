@@ -101,7 +101,7 @@ already does) and treat drift as noise, not signal.
 | Crowd score | `MediaItem.tmdbVoteAverage` | Done. Deliberately not a feature key. Phase 19's. |
 | Purity precedent | `Services/RankingEngine.swift` | `import Foundation` only, stateless struct, comparator injected. Phase 13 mirrors this exactly. |
 | Derived-value-type precedent | `ProfileStats` in `Views/Profile/ProfileView.swift` | `init(watched:)`, deterministic alphabetical tie-break. |
-| Test idiom | `WatchRankTests/TestSupport.swift` | Swift Testing (`@Suite` / `@Test` / `#expect`), shared fixtures, `abs(a-b) < 0.0001` for floats. |
+| Test idiom | `BingedTests/TestSupport.swift` | Swift Testing (`@Suite` / `@Test` / `#expect`), shared fixtures, `abs(a-b) < 0.0001` for floats. |
 
 **One thing it does not give us**, and it is the finding with the largest blast
 radius — see §3.1.
@@ -605,8 +605,8 @@ passes — microseconds. Keep the surface small.
 
 ## 7. Test plan
 
-`WatchRankTests/RecommendationEngineTests.swift` for prediction,
-`WatchRankTests/TasteProfileTests.swift` for profile construction. Swift Testing,
+`BingedTests/RecommendationEngineTests.swift` for prediction,
+`BingedTests/TasteProfileTests.swift` for profile construction. Swift Testing,
 store-free over hand-built `MediaItem`s, `abs(a - b) < 0.0001` for floats, new
 shared fixtures added to `TestSupport.swift` per its own stated policy.
 

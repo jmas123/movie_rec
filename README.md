@@ -1,4 +1,4 @@
-# WatchRank
+# Binged
 
 An iOS app for ranking the movies and TV shows you've watched, inspired by Beli's pairwise comparison flow. You never type a number — you pick a coarse sentiment ("Liked it", "It was fine", "Didn't like it"), then the app walks you through a short series of "which did you prefer?" comparisons to slot the new title into your personal ranking. A 0–10 score is derived from where it lands.
 
@@ -24,10 +24,10 @@ No package manager, no `pod install`, no `swift package resolve` — the project
 
 ## Build
 
-Open `WatchRank/WatchRank.xcodeproj` in Xcode and press ⌘B, or from the command line:
+Open `Binged/Binged.xcodeproj` in Xcode and press ⌘B, or from the command line:
 
 ```bash
-xcodebuild -scheme WatchRank \
+xcodebuild -scheme Binged \
   -destination 'platform=iOS Simulator,name=iPhone 16' \
   build
 ```
@@ -35,16 +35,16 @@ xcodebuild -scheme WatchRank \
 ## Test
 
 ```bash
-xcodebuild -scheme WatchRank \
+xcodebuild -scheme Binged \
   -destination 'platform=iOS Simulator,name=iPhone 16' \
   test
 ```
 
-Two test plans are checked in. `WatchRank` (the default) runs everything;
-`WatchRankUnit` runs the unit target alone and finishes in a few seconds:
+Two test plans are checked in. `Binged` (the default) runs everything;
+`BingedUnit` runs the unit target alone and finishes in a few seconds:
 
 ```bash
-xcodebuild -scheme WatchRank -testPlan WatchRankUnit \
+xcodebuild -scheme Binged -testPlan BingedUnit \
   -destination 'platform=iOS Simulator,name=iPhone 16' \
   test
 ```
@@ -54,7 +54,7 @@ simulator per target, which on an 8 GB machine can spawn hundreds of processes
 and starve the simulator until it is killed mid-run — a failure that looks
 exactly like a code bug. Leave it off.
 
-UI tests (`WatchRankUITests/RankingFlowUITests.swift`, XCTest) cover the cold launch and the golden path — search → Mark Watched → sentiment → pairwise comparison → the title on Ranking. They launch the app with `-uiTestingInMemoryStore` so each run starts from an empty library and never touches the on-disk store.
+UI tests (`BingedUITests/RankingFlowUITests.swift`, XCTest) cover the cold launch and the golden path — search → Mark Watched → sentiment → pairwise comparison → the title on Ranking. They launch the app with `-uiTestingInMemoryStore` so each run starts from an empty library and never touches the on-disk store.
 
 Unit tests use the Swift Testing framework (`import Testing`, `@Test`, `#expect`) and cover the engine, services, and view models: `RankingEngine` (binary-insertion position + score recomputation), `MockMediaService` (bundle load + search), `MediaLibraryViewModel` (comparison sessions, reorder, cross-bucket moves, review edits, Home rails), `SearchViewModel`, `CompareViewModel` (decision-count bound, placement, cancellation), `RankingViewModel`, and `ProfileStats`.
 

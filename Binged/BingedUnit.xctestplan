@@ -1,0 +1,25 @@
+{
+  "configurations" : [
+    {
+      "id" : "6D1E5A10-0000-4000-A000-000000000002",
+      "name" : "Default",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : true
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:Binged.xcodeproj",
+        "identifier" : "E0CFBA8C2FBD2F5300CFD11B",
+        "name" : "BingedTests"
+      }
+    }
+  ],
+  "version" : 1
+}

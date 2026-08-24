@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    PrivacyInfo.xcprivacy
+
+    What Binged collects, and why. Required for App Store submission.
+
+    NSPrivacyTrackingDomains is deliberately empty and should stay that way:
+    there is no tracking, no advertising identifier and no third-party SDK of
+    any kind.
+
+    NSPrivacyAccessedAPITypes declares exactly one API, and the list is easy to
+    get wrong by omission — a required-reason API used anywhere in the app must
+    appear here even if it holds nothing sensitive. What the app still does NOT
+    touch: file timestamps (CatalogCache stamps its own payload rather than
+    asking the filesystem), disk space, boot time, and active keyboards.
+
+    Everything under NSPrivacyCollectedDataTypes is collected only for a
+    signed-in user, and covers the whole of a synced library rather than only
+    the published part — see docs/PART-IV-SYNC.md §5. **Signed out, nothing
+    leaves the device.** That last sentence is the one to re-check whenever sync
+    changes; it was cited to PART-III-SOCIAL.md §8 until Part IV superseded that
+    section, and a stale citation inside a compliance artifact is worse than one
+    in a design doc.
+-->
+<plist version="1.0">
+<dict>
+    <key>NSPrivacyTracking</key>
+    <false/>
+
+    <key>NSPrivacyTrackingDomains</key>
+    <array/>
+
+    <key>NSPrivacyAccessedAPITypes</key>
+    <array>
+        <!-- PublishConsent stores the user's answer to the publish question in
+             UserDefaults, keyed by account id. CA92.1 is the reason code for
+             reading and writing values accessible only to the app itself, which
+             is what this is: the answer never leaves the device and is not
+             shared with an app group or another process.
+
+             The refresh token is deliberately NOT here — KeychainTokenStore
+             exists so it does not live in a plist. -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>CA92.1</string>
+            </array>
+        </dict>
+    </array>
+
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array>
+        <!-- Sign-up credential. Linked to the account by definition. -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeEmailAddress</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!-- The handle: how other people find and address an account. -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeUserID</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!-- Optional display name shown on posts and profiles. -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeName</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!-- Published rankings, reviews and comments. -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

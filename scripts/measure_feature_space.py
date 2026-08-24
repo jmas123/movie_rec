@@ -25,7 +25,7 @@ Usage:
     python3 scripts/measure_feature_space.py [--titles 400] [--out docs/FEATURE-SPACE.md]
 
 Reads the token from $TMDB_READ_TOKEN, falling back to parsing
-WatchRank/Config/Secrets.xcconfig. Standard library only — this is dev tooling
+Binged/Config/Secrets.xcconfig. Standard library only — this is dev tooling
 that runs on the Mac, not app code, so it does not touch the "no dependencies"
 rule for the app itself.
 """
@@ -50,7 +50,7 @@ from pathlib import Path
 
 API = "https://api.themoviedb.org/3"
 REPO = Path(__file__).resolve().parent.parent
-SECRETS = REPO / "WatchRank" / "Config" / "Secrets.xcconfig"
+SECRETS = REPO / "Binged" / "Config" / "Secrets.xcconfig"
 
 # TMDB's own segment names, matching TMDBIdentifier.segment(for:) in the app.
 TYPES = ("movie", "tv")

@@ -400,10 +400,10 @@ graded. Fixed in `ROADMAP.md` Phase 15 step 4 now, while it is still prose.
    broken — the pattern Phase 12 used for `popularTitles`.
 6. `Services/CandidatePoolBuilder.swift` — paging, dedupe, membership sets, TTL,
    serve-stale-refresh-behind, bounded with logging.
-7. `WatchRankTests/MoodTests.swift` — every mood resolves to a non-empty query
+7. `BingedTests/MoodTests.swift` — every mood resolves to a non-empty query
    for both types; the ≥30 eligible test against a **realistic watched library**
    fixture and recorded page fixtures.
-8. `WatchRankTests/CandidatePoolBuilderTests.swift` — dedupe across overlapping
+8. `BingedTests/CandidatePoolBuilderTests.swift` — dedupe across overlapping
    moods; membership survives a round trip; TTL staleness; a stale pool is
    served rather than awaited; the page cap logs what it dropped.
 9. Update `ROADMAP.md` Phase 14 → ✅ with a findings block, and annotate open

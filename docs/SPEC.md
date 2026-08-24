@@ -1,4 +1,4 @@
-Build an iOS app MVP called "WatchRank": a Beli-style ranking app for movies and TV shows.
+Build an iOS app MVP called "Binged": a Beli-style ranking app for movies and TV shows.
 Stack
 
 SwiftUI, MVVM
@@ -58,9 +58,9 @@ Compare flow: Modal that walks the user through pairwise comparisons after a new
 Profile: Total watched, breakdown by type, average score, top 5 of all time, top 3 genres by count.
 
 File structure
-WatchRank/
+Binged/
   App/
-    WatchRankApp.swift
+    BingedApp.swift
     RootTabView.swift
   Models/
     MediaItem.swift

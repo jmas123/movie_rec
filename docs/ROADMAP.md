@@ -1,4 +1,4 @@
-# WatchRank Roadmap
+# Binged Roadmap
 
 The path from "foundation done" to "MVP shippable" — one phase per screen or service so each future session has a single, unambiguous goal.
 
@@ -13,7 +13,7 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 - Every phase lists: a one-line **Goal**, ordered **Steps**, **Acceptance criteria** ("done when…"), and **Files created / modified**.
 - ~~After every phase that adds new files, drag them into the Xcode target manually — Claude will not edit `project.pbxproj`.~~ **No longer needed:** the project now uses `PBXFileSystemSynchronizedRootGroup`, so files added on disk are picked up by the target automatically.
 
-> **✅ Build blocker (resolved):** empty folders carry a `.gitkeep`, and the synchronized group used to copy all of them to the same `WatchRank.app/.gitkeep` path, failing with *"Multiple commands produce …/.gitkeep."* Fixed by setting `EXCLUDED_SOURCE_FILE_NAMES = .gitkeep` on the app target (both Debug and Release) in `project.pbxproj`, which keeps every `.gitkeep` out of the bundle regardless of folder. The markers can now safely stay, so empty folders remain tracked in git.
+> **✅ Build blocker (resolved):** empty folders carry a `.gitkeep`, and the synchronized group used to copy all of them to the same `Binged.app/.gitkeep` path, failing with *"Multiple commands produce …/.gitkeep."* Fixed by setting `EXCLUDED_SOURCE_FILE_NAMES = .gitkeep` on the app target (both Debug and Release) in `project.pbxproj`, which keeps every `.gitkeep` out of the bundle regardless of folder. The markers can now safely stay, so empty folders remain tracked in git.
 >
 > **✅ Runtime blocker (resolved 2026-08-21):** iOS 18.3 is installed and the **iPhone 16** simulator is the destination for every build/test command (the docs previously said iPhone 15, which does not exist on this machine). The full suite now *runs*: 61 tests, 0 failures.
 
@@ -33,7 +33,7 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 
 ### Steps (all complete)
 1. Author `CLAUDE.md` and `README.md` at repo root.
-2. Create the `WatchRank/WatchRank/` folder tree from `SPEC.md` with `.gitkeep` markers in empty folders.
+2. Create the `Binged/Binged/` folder tree from `SPEC.md` with `.gitkeep` markers in empty folders.
 3. Implement enums: `MediaType`, `WatchedStatus`, `Sentiment` (with `scoreRange: ClosedRange<Double>`).
 4. Implement `MediaItem` as a SwiftData `@Model`.
 5. Implement `RankingEngine` (binary insertion + score recomputation, `import Foundation` only).
@@ -45,12 +45,12 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 
 ### Files created / modified
 - `/CLAUDE.md`, `/README.md`
-- `WatchRank/WatchRank/Models/MediaItem.swift`
-- `WatchRank/WatchRank/Models/MediaType.swift`
-- `WatchRank/WatchRank/Models/WatchedStatus.swift`
-- `WatchRank/WatchRank/Models/Sentiment.swift`
-- `WatchRank/WatchRank/Services/RankingEngine.swift`
-- `WatchRank/WatchRankTests/RankingEngineTests.swift`
+- `Binged/Binged/Models/MediaItem.swift`
+- `Binged/Binged/Models/MediaType.swift`
+- `Binged/Binged/Models/WatchedStatus.swift`
+- `Binged/Binged/Models/Sentiment.swift`
+- `Binged/Binged/Services/RankingEngine.swift`
+- `Binged/BingedTests/RankingEngineTests.swift`
 - `.gitkeep` markers under `App/`, `Views/**`, `Components/`, `ViewModels/`, `Resources/`
 
 ---
@@ -71,10 +71,10 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 - Tests pass.
 
 ### Files created / modified
-- `WatchRank/WatchRank/Services/MediaService.swift`
-- `WatchRank/WatchRank/Services/MockMediaService.swift`
-- `WatchRank/WatchRank/Resources/MockMedia.json`
-- `WatchRank/WatchRankTests/MockMediaServiceTests.swift`
+- `Binged/Binged/Services/MediaService.swift`
+- `Binged/Binged/Services/MockMediaService.swift`
+- `Binged/Binged/Resources/MockMedia.json`
+- `Binged/BingedTests/MockMediaServiceTests.swift`
 
 ---
 
@@ -101,8 +101,8 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 - All tests pass in an in-memory store; no on-disk side effects between tests.
 
 ### Files created / modified
-- `WatchRank/WatchRank/ViewModels/MediaLibraryViewModel.swift`
-- `WatchRank/WatchRankTests/MediaLibraryViewModelTests.swift`
+- `Binged/Binged/ViewModels/MediaLibraryViewModel.swift`
+- `Binged/BingedTests/MediaLibraryViewModelTests.swift`
 
 ---
 
@@ -124,11 +124,11 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 - No third-party imports.
 
 ### Files created / modified
-- `WatchRank/WatchRank/Components/PosterPlaceholder.swift`
-- `WatchRank/WatchRank/Components/MediaCard.swift`
-- `WatchRank/WatchRank/Components/MediaRow.swift`
-- `WatchRank/WatchRank/Components/EmptyStateView.swift`
-- `WatchRank/WatchRank/Components/SentimentPicker.swift`
+- `Binged/Binged/Components/PosterPlaceholder.swift`
+- `Binged/Binged/Components/MediaCard.swift`
+- `Binged/Binged/Components/MediaRow.swift`
+- `Binged/Binged/Components/EmptyStateView.swift`
+- `Binged/Binged/Components/SentimentPicker.swift`
 
 ---
 
@@ -151,9 +151,9 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 - VM has zero SwiftUI imports.
 
 ### Files created / modified
-- `WatchRank/WatchRank/ViewModels/SearchViewModel.swift`
-- `WatchRank/WatchRank/Views/Search/SearchView.swift`
-- `WatchRank/WatchRankTests/SearchViewModelTests.swift`
+- `Binged/Binged/ViewModels/SearchViewModel.swift`
+- `Binged/Binged/Views/Search/SearchView.swift`
+- `Binged/BingedTests/SearchViewModelTests.swift`
 
 ---
 
@@ -179,7 +179,7 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 - Review edits persist via SwiftData.
 
 ### Files created / modified
-- `WatchRank/WatchRank/Views/Detail/MediaDetailView.swift`
+- `Binged/Binged/Views/Detail/MediaDetailView.swift`
 
 ---
 
@@ -202,9 +202,9 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 - The modal handles cancellation (dismiss without choosing) by leaving the item in its sentiment bucket at the midpoint, so the user is never blocked.
 
 ### Files created / modified
-- `WatchRank/WatchRank/ViewModels/CompareViewModel.swift`
-- `WatchRank/WatchRank/Views/Compare/CompareView.swift`
-- `WatchRank/WatchRankTests/CompareViewModelTests.swift`
+- `Binged/Binged/ViewModels/CompareViewModel.swift`
+- `Binged/Binged/Views/Compare/CompareView.swift`
+- `Binged/BingedTests/CompareViewModelTests.swift`
 
 ---
 
@@ -227,8 +227,8 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 - Switching the type tab does not flicker scores.
 
 ### Files created / modified
-- `WatchRank/WatchRank/ViewModels/RankingViewModel.swift`
-- `WatchRank/WatchRank/Views/Ranking/RankingView.swift`
+- `Binged/Binged/ViewModels/RankingViewModel.swift`
+- `Binged/Binged/Views/Ranking/RankingView.swift`
 
 ---
 
@@ -255,7 +255,7 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 - Rails update live when ranking changes (validated by adding an item via Compare and watching it appear).
 
 ### Files created / modified
-- `WatchRank/WatchRank/Views/Home/HomeView.swift`
+- `Binged/Binged/Views/Home/HomeView.swift`
 
 ---
 
@@ -280,15 +280,15 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 - Profile renders an empty state when the user has zero watched items.
 
 ### Files created / modified
-- `WatchRank/WatchRank/Views/Profile/ProfileView.swift`
+- `Binged/Binged/Views/Profile/ProfileView.swift`
 
 ---
 
 ## Phase 10 — App shell & wiring ✅ (verified on the iPhone 16 simulator, 2026-08-21)
 
-> `RootTabView` (Home / Search / Ranking / Profile, each with its own NavigationStack so Compare presents over the active tab) written and type-checks clean. `WatchRankApp` now owns an on-disk `ModelContainer`, builds the shared `MediaLibraryViewModel` over its main context, injects the VM via `.environment` and the `MediaService` by init, and shows `RootTabView` instead of `ContentView`. **`ContentView.swift` left in place** (now dead code) pending user confirmation to delete — open question #4.
+> `RootTabView` (Home / Search / Ranking / Profile, each with its own NavigationStack so Compare presents over the active tab) written and type-checks clean. `BingedApp` now owns an on-disk `ModelContainer`, builds the shared `MediaLibraryViewModel` over its main context, injects the VM via `.environment` and the `MediaService` by init, and shows `RootTabView` instead of `ContentView`. **`ContentView.swift` left in place** (now dead code) pending user confirmation to delete — open question #4.
 >
-> **Verification (2026-08-21):** cold launch on iPhone 16 is clean — tab bar renders, all four Home rails show their empty states. The end-to-end loop is now covered by `WatchRankUITests/RankingFlowUITests.swift`, which launches with `-uiTestingInMemoryStore` (a new `WatchRankApp` hook that swaps the on-disk store for a throwaway one) and drives search → Mark Watched → sentiment → comparison → Ranking.
+> **Verification (2026-08-21):** cold launch on iPhone 16 is clean — tab bar renders, all four Home rails show their empty states. The end-to-end loop is now covered by `BingedUITests/RankingFlowUITests.swift`, which launches with `-uiTestingInMemoryStore` (a new `BingedApp` hook that swaps the on-disk store for a throwaway one) and drives search → Mark Watched → sentiment → comparison → Ranking.
 >
 > **Bug found and fixed by that test:** every read on `MediaLibraryViewModel` goes through an untracked `modelContext.fetch`, which `@Observable` cannot see — so Ranking, Home, and Profile rendered once and never redrew after a ranking change (the newly ranked title simply never appeared on Ranking). Fixed with a `revision` counter bumped in `save()` and read by `allItems`, which gives every screen a real observation dependency. Regression test: `MediaLibraryViewModelTests.bucketReadIsObservable`.
 
@@ -297,7 +297,7 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 
 ### Steps
 1. `App/RootTabView.swift` — `TabView` with Home, Search, Ranking, Profile tabs (SF Symbol icons). Make sure Compare presents over the active tab rather than replacing it.
-2. **Touch `WatchRankApp.swift`** for the first time: wire the SwiftData `ModelContainer` (with a `MediaItem` schema) and inject `MediaLibraryViewModel` into the environment. Replace `ContentView()` with `RootTabView()`.
+2. **Touch `BingedApp.swift`** for the first time: wire the SwiftData `ModelContainer` (with a `MediaItem` schema) and inject `MediaLibraryViewModel` into the environment. Replace `ContentView()` with `RootTabView()`.
 3. Delete or repurpose `ContentView.swift` (Xcode-template artifact). Confirm with user before deleting.
 4. Verify a cold launch on the iPhone 16 simulator: the tab bar renders, an empty Home screen shows empty states, Search returns mock results, and a full Mark Watched → Compare → Ranking loop completes.
 
@@ -307,10 +307,10 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 - SwiftData persists across simulator relaunches.
 
 ### Files created / modified
-- `WatchRank/WatchRank/App/RootTabView.swift`
-- `WatchRank/WatchRank/WatchRankApp.swift` (modified)
-- `WatchRank/WatchRank/ContentView.swift` (deleted or replaced — confirm with user)
-- `WatchRank/WatchRankUITests/RankingFlowUITests.swift` (added during verification)
+- `Binged/Binged/App/RootTabView.swift`
+- `Binged/Binged/BingedApp.swift` (modified)
+- `Binged/Binged/ContentView.swift` (deleted or replaced — confirm with user)
+- `Binged/BingedUITests/RankingFlowUITests.swift` (added during verification)
 
 ---
 
@@ -336,7 +336,7 @@ The path from "foundation done" to "MVP shippable" — one phase per screen or s
 >    `GAP-AUDIT.md` §5). Corrected, along with the same claim in `README.md`, `MANUAL-QA.md`
 >    and this file.
 > 3. **Five view files lived one directory too deep**, in a stray
->    `WatchRank/WatchRank/WatchRank/Views/`. Moved; the synchronized root group needed no
+>    `Binged/Binged/Binged/Views/`. Moved; the synchronized root group needed no
 >    `.pbxproj` edit and the suite stayed green.
 >
 > **466 unit tests green** after the change, up from 463.
@@ -484,7 +484,7 @@ Non-negotiable; every phase below respects them:
    - how far cast members are *nested* inside directors — the share of an actor's appearances that fall under a single director (Phase 19's suppression rule depends on this)
 
    The expected shape, worth stating so the measurement can contradict it: cast is by far the sparsest family — ~10 billed actors per title means ~500 distinct people across 50 films, nearly all singletons — while composers repeat more than intuition suggests, because a composer spans directors. If that holds, cast feeds prediction but may never clear a display floor.
-10. `WatchRankTests/TMDBMediaServiceTests.swift` — a `URLProtocol` stub serving **recorded JSON fixtures**. No test may hit the network: tests would then fail on a plane, fail in CI, and fail when TMDB has an incident.
+10. `BingedTests/TMDBMediaServiceTests.swift` — a `URLProtocol` stub serving **recorded JSON fixtures**. No test may hit the network: tests would then fail on a plane, fail in CI, and fail when TMDB has an incident.
 
 ### Acceptance criteria
 
@@ -513,9 +513,9 @@ Non-negotiable; every phase below respects them:
 - `Services/MockMediaService.swift` — real `popularTitles`; derives genre features so the offline path is thinner, not broken
 - `Models/Feature.swift` — the `family:id|Display Name` key space
 - `Models/MediaItem.swift` — adds `features`, `tmdbVoteAverage`
-- `WatchRankApp.swift` — `makeService(isUITesting:)`, pinning UI tests to the mock
-- `WatchRank/Config/{Base.xcconfig, Secrets.xcconfig.example, Info.plist}`, `.gitignore`, `project.pbxproj`
-- `WatchRankTests/{TMDBTestSupport, TMDBMediaServiceTests, CatalogCacheTests}.swift`
+- `BingedApp.swift` — `makeService(isUITesting:)`, pinning UI tests to the mock
+- `Binged/Config/{Base.xcconfig, Secrets.xcconfig.example, Info.plist}`, `.gitignore`, `project.pbxproj`
+- `BingedTests/{TMDBTestSupport, TMDBMediaServiceTests, CatalogCacheTests}.swift`
 - `scripts/measure_feature_space.py` — step 9, awaiting the key
 - `docs/FEATURE-SPACE.md` — **not yet written** (step 9 output)
 
@@ -566,8 +566,8 @@ Non-negotiable; every phase below respects them:
 - `Services/FeatureProvider.swift` — same context-save fix
 - `Models/MediaItem.swift` — `saveOwningContexts()`
 - `ViewModels/MediaLibraryViewModel.swift` — canonicalised id comparison; `allItems` now internal
-- `WatchRankApp.swift` — `runStartupMaintenance()`, migration then backfill
-- `WatchRankTests/{ExternalIDMigrationTests, TMDBMediaServiceTests, TMDBTestSupport, MockMediaServiceTests}.swift`
+- `BingedApp.swift` — `runStartupMaintenance()`, migration then backfill
+- `BingedTests/{ExternalIDMigrationTests, TMDBMediaServiceTests, TMDBTestSupport, MockMediaServiceTests}.swift`
 
 ---
 
@@ -644,7 +644,7 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 2. `Models/TasteProfile.swift` — value type: `baselinesByType`, `featureEffects: [String: Double]`, `featureCounts: [String: Int]`, `featureSupport: [String: Set<UUID>]`, `watchedCountsByType`, `globalMean`. Built once by `buildProfile(from: [MediaItem])` and reused for every candidate in a request — building it per candidate is O(library × pool) for no reason. `featureSupport` records *which* items back each feature, not just how many; the counts fall out of it, and Phase 19's nesting rule needs the sets themselves.
 3. `Models/PredictedScore.swift` — `value`, `confidence`, `evidence`, `topContributingFeatures: [String]` (for the "because you liked crime dramas" line in Phase 16). Keywords make this line much better than genres alone could: "because you like slow-burn neo-noir" is a sentence a user recognises.
 4. Tuning constants — one per feature family — as named `static let`s in one place, so Phase 17's calibration work has a single knob panel.
-5. `WatchRankTests/RecommendationEngineTests.swift`.
+5. `BingedTests/RecommendationEngineTests.swift`.
 
 ### Acceptance criteria
 
@@ -665,8 +665,8 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 - `Models/PredictedScore.swift` — plus `FeatureContribution`, which carries `Feature` rather than the `[String]` originally specified, so Phase 16 renders a name instead of re-parsing a key
 - `Models/RecommendationTuning.swift` — the knob panel, a struct rather than `static let`s so Phase 17 can sweep it
 - `Models/CandidateFeatures.swift` — the `Sendable` snapshot that keeps scoring off the main actor
-- `WatchRankTests/{RecommendationEngineTests, TasteProfileTests, RecommendationTuningTests}.swift`
-- `WatchRankTests/TestSupport.swift` — `makeScored`, `bucketScores`, `makePlanFixtureLibrary`
+- `BingedTests/{RecommendationEngineTests, TasteProfileTests, RecommendationTuningTests}.swift`
+- `BingedTests/TestSupport.swift` — `makeScored`, `bucketScores`, `makePlanFixtureLibrary`
 
 ---
 
@@ -734,9 +734,9 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 - `Services/TMDBDTOs.swift` — `TMDBKeywordSearchDTO`
 - `Services/CatalogCache.swift` — `pool(type:component:page:)`, `keyword(_:)`, `candidatePool`
 - `Services/MockMediaService.swift` — `CandidateSource` conformance; genre components only, so offline Discover is thinner rather than broken
-- `WatchRankTests/{MoodTests, CandidatePoolBuilderTests}.swift`
-- `WatchRankTests/TestSupport.swift` — `makeFullGenreVocabulary`, `StubCandidateSource`, `makeFullStubSource`
-- `WatchRankTests/TMDBTestSupport.swift` — `RequestLog.urls` / `count(inQuery:)`
+- `BingedTests/{MoodTests, CandidatePoolBuilderTests}.swift`
+- `BingedTests/TestSupport.swift` — `makeFullGenreVocabulary`, `StubCandidateSource`, `makeFullStubSource`
+- `BingedTests/TMDBTestSupport.swift` — `RequestLog.urls` / `count(inQuery:)`
 - `scripts/measure_mood_yield.py`, `docs/MOOD-YIELD.md` — step 0
 
 ---
@@ -779,7 +779,7 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 5. **Diversity.** Cap any single genre at ~40% of the returned list; backfill from the next-best candidates. With a 1200-title pool this finally has room to work.
 6. **Cold start.** `static let minimumLibraryForRecommendations = 10` watched overall and ≥ 3 of the requested type. Below that return `.needsMoreRankings(have:need:)` rather than confidently-wrong numbers — rule 6's instinct, one layer up.
 7. **Caching.** Build the `TasteProfile` once per request; cache against `MediaLibraryViewModel.revision` so switching moods does not rebuild it. Invalidate when `revision` changes.
-8. `WatchRankTests/RecommendationViewModelTests.swift` — in-memory `ModelContainer`, stub pool.
+8. `BingedTests/RecommendationViewModelTests.swift` — in-memory `ModelContainer`, stub pool.
 
 ### Acceptance criteria
 
@@ -795,8 +795,8 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 - `ViewModels/RecommendationViewModel.swift` — `@Observable`, the two-stage pipeline, exclusions, cold start, soft genre cap, revision-keyed profile cache, `profileRebuilds` diagnostic
 - `Models/Recommendation.swift` — `Recommendation` (item, prediction, `moodWeight`, `isQueued`, `lift`) and `RecommendationResult` (`.ready` / `.needsMoreRankings(have:need:type:)` / `.noCandidates(poolIsEmpty:)`)
-- `WatchRankTests/RecommendationViewModelTests.swift`
-- `WatchRankTests/TestSupport.swift` — `makeRankedLibrary`, genre support on `StubCandidateSource`
+- `BingedTests/RecommendationViewModelTests.swift`
+- `BingedTests/TestSupport.swift` — `makeRankedLibrary`, genre support on `StubCandidateSource`
 
 `needsMoreRankings` carries a `type` the roadmap did not specify, so the UI can name the **binding** constraint — "rank 2 more shows" rather than a number that does not match what the user is looking at.
 
@@ -898,8 +898,8 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 - `ViewModels/RecommendationViewModel.swift` — calibration wired in after the diversity cap
 - `Services/RecommendationEngine.swift` — midrank tie handling in `calibrate`
 - `App/RootTabView.swift` — fifth tab, `recommender` optional so a tokenless build has no Discover tab rather than one that can never answer
-- `WatchRankApp.swift` — `makeRecommender(service:library:)`
-- `WatchRankTests/PredictionDisplayTests.swift`, plus calibration suites in `RecommendationEngineTests` and `RecommendationViewModelTests`
+- `BingedApp.swift` — `makeRecommender(service:library:)`
+- `BingedTests/PredictionDisplayTests.swift`, plus calibration suites in `RecommendationEngineTests` and `RecommendationViewModelTests`
 
 **Detail-screen predictions (same phase, added after):**
 
@@ -912,7 +912,7 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 - `Services/CandidatePoolBuilder.swift` — `cachedPool()`, plus the requested-type guard in `build()`
 - `ViewModels/RecommendationViewModel.swift` — `prediction(for:)`, reference cache keyed on `revision`
 - `Views/Detail/MediaDetailView.swift` — the predicted section, quieter than the earned score by design
-- `WatchRankApp.swift` — recommender into the environment, so pushed detail views can reach it
+- `BingedApp.swift` — recommender into the environment, so pushed detail views can reach it
 
 ---
 
@@ -936,7 +936,7 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 1. **Record the prediction.** When a recommended item is added to Want to Watch, persist `predictedScore` and `predictedAt` on the `MediaItem`. (Schema change — delete the app from the simulator.) When it is later watched and ranked, the app holds a matched pair: what it guessed, and what the user's own comparisons produced.
 2. **Accuracy surface.** Mean absolute error over matched pairs plus a hit rate. Show it as one honest line on Profile — "predictions are landing within 1.3 points" — or behind a debug toggle if it reads as too inside-baseball. Decide during the phase.
-3. **Leave-one-out cross-validation as a test.** Hold out each watched item, build the profile from the rest, predict the held-out item, and report **rank agreement first, error second**. Runs against a fixture library in `WatchRankTests` and is the only honest way to tune `K_GENRE` / `K_TYPE` without shipping a guess.
+3. **Leave-one-out cross-validation as a test.** Hold out each watched item, build the profile from the rest, predict the held-out item, and report **rank agreement first, error second**. Runs against a fixture library in `BingedTests` and is the only honest way to tune `K_GENRE` / `K_TYPE` without shipping a guess.
 
    **Rank agreement is the primary metric, not MAE** — a correction to what this phase originally assumed, and it follows from [`PHASE-13-PLAN.md`](./PHASE-13-PLAN.md) §1. A stored score is a *quantile within its bucket*, so it changes whenever the bucket grows, without the user's opinion changing. MAE is measured against a target that moves under it; Spearman is invariant to exactly that drift. Report, in this order:
 
@@ -973,7 +973,7 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 - `ViewModels/RecommendationViewModel.swift` — dismissals join the exclusion set
 - `Views/Profile/ProfileView.swift` — the accuracy section, plus `RevisionCache` so cross-validation never runs in a `body` evaluation
 - `Views/Discover/{RecommendationRow, DiscoverView}.swift` — "Not for me", and the guess frozen on queue
-- `WatchRankTests/RecommendationAccuracyTests.swift`
+- `BingedTests/RecommendationAccuracyTests.swift`
 
 ---
 
@@ -1058,7 +1058,7 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 8. `Views/Profile/ProfileView.swift` — replace the Top Genres section with a compact "Your taste" teaser card showing the top two contrasts, behind a `NavigationLink` into `TasteAnalysisView`. Profile already owns its own `NavigationStack`, and the tab bar is full at five after Phase 16.
 9. **Cold start.** Below a minimum library, `EmptyStateView` naming the exact number of rankings still needed plus a CTA into Search — the pattern `ProfileView` and Phase 15's `minimumLibraryForRecommendations` already use. Never a screen of features at n = 1.
 10. **Cache against `revision`.** `ProfileStats` is rebuilt on every body evaluation, which is fine at its cost but not for a multi-pass feature tally plus set-containment checks. Build the analysis once per `MediaLibraryViewModel.revision` change. Any new library accessor must route through `allItems` or touch `revision`, or the screen renders once and never updates — the Phase 10 observation bug, which has a regression test for exactly this reason.
-11. `WatchRankTests/TasteAnalysisTests.swift` — Swift Testing (`@Suite` / `@Test` / `#expect`), store-free over hand-built `MediaItem`s, mirroring `ProfileStatsTests`. Float comparisons use the existing `abs(a - b) < 0.0001` idiom.
+11. `BingedTests/TasteAnalysisTests.swift` — Swift Testing (`@Suite` / `@Test` / `#expect`), store-free over hand-built `MediaItem`s, mirroring `ProfileStatsTests`. Float comparisons use the existing `abs(a - b) < 0.0001` idiom.
 
 ### Acceptance criteria
 
@@ -1077,7 +1077,7 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 - `Models/TasteAnalysis.swift` — `Claim`, `Contrast`, floors, nesting suppression, crowd agreement
 - `Views/Profile/TasteAnalysisView.swift` — headline, genres, themes, people, context, crowd
 - `Views/Profile/ProfileView.swift` — "Your taste" link; `topGenres` removed
-- `WatchRankTests/TasteAnalysisTests.swift`, `ProfileStatsTests.swift` (coverage moved)
+- `BingedTests/TasteAnalysisTests.swift`, `ProfileStatsTests.swift` (coverage moved)
 
 ---
 
@@ -1127,7 +1127,7 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 - `supabase/migrations/20260821210000_social.sql` — 8 tables, 4 enums, 5 policy helpers, 24 policies, 8 triggers, 6 indexes, the `feed()` RPC (the CLI orders migrations by the leading timestamp, so the planned `0001_` name would not have been picked up by `db reset`)
 - `supabase/tests/rls_test.sql` — 27 pgTAP assertions, 23 of them negative
 - `supabase/config.toml`, `supabase/.gitignore` (from `supabase init`)
-- `WatchRank/Config/Secrets.xcconfig.example`, `WatchRank/Config/Info.plist`, `WatchRank/Config/Base.xcconfig`
+- `Binged/Config/Secrets.xcconfig.example`, `Binged/Config/Info.plist`, `Binged/Config/Base.xcconfig`
 - `docs/PART-III-SOCIAL.md` (record any schema deviations)
 
 ---
@@ -1169,8 +1169,8 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ### Files created / modified
 
-- `WatchRank/WatchRank/Services/Supabase/{SupabaseClient,SupabaseConfiguration,KeychainTokenStore}.swift`
-- `WatchRank/WatchRankTests/SupabaseClientTests.swift`, `SupabaseTestSupport.swift`
+- `Binged/Binged/Services/Supabase/{SupabaseClient,SupabaseConfiguration,KeychainTokenStore}.swift`
+- `Binged/BingedTests/SupabaseClientTests.swift`, `SupabaseTestSupport.swift`
 
 ---
 
@@ -1211,11 +1211,11 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ### Files created / modified
 
-- `WatchRank/WatchRank/Services/{AuthService,SupabaseAuthService,MockAuthService}.swift`
-- `WatchRank/WatchRank/Models/UserProfile.swift`
-- `WatchRank/WatchRank/ViewModels/SessionViewModel.swift`
-- `WatchRank/WatchRank/Views/Auth/*.swift`, `App/WatchRankApp.swift`, `App/RootTabView.swift`
-- `WatchRank/WatchRankTests/{AuthServiceTests,SessionViewModelTests}.swift`
+- `Binged/Binged/Services/{AuthService,SupabaseAuthService,MockAuthService}.swift`
+- `Binged/Binged/Models/UserProfile.swift`
+- `Binged/Binged/ViewModels/SessionViewModel.swift`
+- `Binged/Binged/Views/Auth/*.swift`, `App/BingedApp.swift`, `App/RootTabView.swift`
+- `Binged/BingedTests/{AuthServiceTests,SessionViewModelTests}.swift`
 
 ---
 
@@ -1259,10 +1259,10 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ### Files created / modified
 
-- `WatchRank/WatchRank/Models/PendingPublish.swift`
-- `WatchRank/WatchRank/Services/SyncEngine.swift`
-- `WatchRank/WatchRank/ViewModels/MediaLibraryViewModel.swift`
-- `WatchRank/WatchRankTests/{SyncEngineTests,PublishPayloadTests}.swift`
+- `Binged/Binged/Models/PendingPublish.swift`
+- `Binged/Binged/Services/SyncEngine.swift`
+- `Binged/Binged/ViewModels/MediaLibraryViewModel.swift`
+- `Binged/BingedTests/{SyncEngineTests,PublishPayloadTests}.swift`
 - SwiftData schema change — **no wipe needed**, verified: a new entity lightweight-migrates.
 
 ---
@@ -1301,11 +1301,11 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ### Files created / modified
 
-- `WatchRank/WatchRank/Services/{SocialService,SupabaseSocialService,MockSocialService}.swift`
-- `WatchRank/WatchRank/Models/FollowState.swift`
-- `WatchRank/WatchRank/ViewModels/UserSearchViewModel.swift`
-- `WatchRank/WatchRank/Views/Social/*.swift`
-- `WatchRank/WatchRankTests/{SocialServiceTests,UserSearchViewModelTests}.swift`
+- `Binged/Binged/Services/{SocialService,SupabaseSocialService,MockSocialService}.swift`
+- `Binged/Binged/Models/FollowState.swift`
+- `Binged/Binged/ViewModels/UserSearchViewModel.swift`
+- `Binged/Binged/Views/Social/*.swift`
+- `Binged/BingedTests/{SocialServiceTests,UserSearchViewModelTests}.swift`
 
 ---
 
@@ -1340,9 +1340,9 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ### Files created / modified
 
-- `WatchRank/WatchRank/ViewModels/UserProfileViewModel.swift`
-- `WatchRank/WatchRank/Views/Social/UserProfileView.swift`
-- `WatchRank/WatchRankTests/UserProfileViewModelTests.swift`
+- `Binged/Binged/ViewModels/UserProfileViewModel.swift`
+- `Binged/Binged/Views/Social/UserProfileView.swift`
+- `Binged/BingedTests/UserProfileViewModelTests.swift`
 
 ---
 
@@ -1384,11 +1384,11 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ### Files created / modified
 
-- `WatchRank/WatchRank/Models/FeedPost.swift`
-- `WatchRank/WatchRank/ViewModels/FeedViewModel.swift`
-- `WatchRank/WatchRank/Views/Feed/*.swift`, `App/RootTabView.swift`
-- `WatchRank/WatchRank/Services/SyncEngine.swift` (post emission)
-- `WatchRank/WatchRankTests/FeedViewModelTests.swift`
+- `Binged/Binged/Models/FeedPost.swift`
+- `Binged/Binged/ViewModels/FeedViewModel.swift`
+- `Binged/Binged/Views/Feed/*.swift`, `App/RootTabView.swift`
+- `Binged/Binged/Services/SyncEngine.swift` (post emission)
+- `Binged/BingedTests/FeedViewModelTests.swift`
 
 ---
 
@@ -1428,11 +1428,11 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ### Files created / modified
 
-- `WatchRank/WatchRank/Models/PostComment.swift`
-- `WatchRank/WatchRank/ViewModels/PostViewModel.swift`
-- `WatchRank/WatchRank/Views/Post/*.swift`
-- `WatchRank/WatchRank/Services/SupabaseSocialService.swift`
-- `WatchRank/WatchRankTests/PostViewModelTests.swift`, `supabase/tests/rls_test.sql`
+- `Binged/Binged/Models/PostComment.swift`
+- `Binged/Binged/ViewModels/PostViewModel.swift`
+- `Binged/Binged/Views/Post/*.swift`
+- `Binged/Binged/Services/SupabaseSocialService.swift`
+- `Binged/BingedTests/PostViewModelTests.swift`, `supabase/tests/rls_test.sql`
 
 ---
 
@@ -1476,35 +1476,65 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ### Files created / modified
 
-- `WatchRank/WatchRank/Views/Settings/*.swift`, `Views/Social/ReportSheet.swift`
+- `Binged/Binged/Views/Settings/*.swift`, `Views/Social/ReportSheet.swift`
 - `supabase/migrations/0002_moderation.sql`, `supabase/functions/tmdb-proxy/`
 - `docs/MANUAL-QA.md`, `README.md`, `CLAUDE.md`, `docs/SPEC.md`
 
 ---
 
-## Phase 29 — Closing the publish loop 🔴 not started
+## Phase 29 — Closing the publish loop 🟡 (client complete, schema deployed; the two-account walk is outstanding)
 
 > **Why this phase exists.** Phases 23–27 are marked ✅ and their unit tests are green, but the loop they describe cannot be walked in the running app. Three gaps, found 2026-08-23:
 >
-> **`SyncEngine` has no production call site.** It is constructed in `SyncEngineTests` and `FeedViewModelTests` and nowhere else — `WatchRankApp.makeSocialStack` builds auth, graph, feed and rankings, but never the engine that drains the outbox. So `drain()` and `emitPosts()` never run outside a test: ranking a title marks a `PendingPublish` row that nothing ever reads, no bucket reaches `ranked_items`, and no row is ever inserted into `posts`. Phase 23 built the engine; nobody turned the key.
+> **`SyncEngine` has no production call site.** It is constructed in `SyncEngineTests` and `FeedViewModelTests` and nowhere else — `BingedApp.makeSocialStack` builds auth, graph, feed and rankings, but never the engine that drains the outbox. So `drain()` and `emitPosts()` never run outside a test: ranking a title marks a `PendingPublish` row that nothing ever reads, no bucket reaches `ranked_items`, and no row is ever inserted into `posts`. Phase 23 built the engine; nobody turned the key.
 >
 > **Nothing a solo user does can appear in their own feed, by design.** `public.feed` selects strictly from active followees, and `follows_no_self` forbids following yourself. That is correct behaviour — a feed of your own activity is the *Yours* half of `HomeTabView` — but it means the feed cannot be exercised, at all, without two accounts. Any manual QA script that says "publish, then check the feed" is describing something that cannot happen.
 >
 > **The last three migrations are not confirmed deployed.** `feed_page` and `author_posts` — the two RPCs `SupabaseFeedService` actually calls — live in `20260822010000_client_rpcs.sql`, which postdates the Phase 20 run. If they are absent from the hosted project, every feed load fails and the app renders the failure as `.error`, which reads as a bug in the client.
 >
 > Consent is also outstanding: Phase 23 step 6 asked that an existing local library not upload silently on first sign-in, and no consent surface was built. That step must land *before* the drain is wired, not after — wiring the drain first means the first person to sign in with a populated library publishes it without being asked.
+>
+> ---
+>
+> **Built 2026-08-23. 500 unit tests pass**, up from 477. Steps 1, 2, 3, 4 and 6 are done; **5 and 7 are the user's — they need the database password and two accounts.**
+>
+> **Amended the same day, before the ink dried: the gate moved.** The user decided a library must live in its account at all times, so signing in on any device restores it — which makes syncing unconditional and turns consent into a question about *audience* rather than about upload. See [`PART-IV-SYNC.md`](./PART-IV-SYNC.md). What survived the inversion: the per-user stored answer, the ranking-in-progress guard, the four drain triggers, and the outbox itself. What inverted: the `consentDecision == true` guard on `drain()` (gone — it would have left the most privacy-careful users as the only ones with no backup), and every line of copy that said "stays on this device".
+>
+> **The false sentence was deleted, not reworded.** The first sheet said "Nothing has been uploaded yet. Your ranking stays on this device until you say so." Under the new model that is not stale phrasing, it is an untrue claim used to win a yes — so the sheet now asks "Let followers see your ranking?" and says plainly that the account keeps the library either way. Sync is disclosed at account creation instead, where the decision to have an account is made.
+>
+> **Withdrawing consent hides rows; it does not delete them.** Three different things a user might mean by "take it down" — delete the account, delete the data, change the audience — and only the third is what this button does. `setPublished(false)` flips `is_published` across the library and a test pins that no delete is issued, because answering a question about other people's access by destroying the user's own backup would take something nobody asked to lose.
+>
+> **A bucket is published all-or-nothing, and the database is what guarantees it.** Every row carries `bucket_size` so a viewer can apply rule 6 to somebody else's library; publish three rows of a seven-row bucket and the viewer reads a position against four rows they cannot see. "The client sets it uniformly" is a convention, so the migration revokes `update (is_published)` from `authenticated` outright: new rows inherit their bucket's answer from a trigger, and changing the answer goes through `set_library_published`. **The client therefore never writes the column at all** — including in the upsert body, where sending it would 42501 on every drain after the first, since a PostgREST upsert becomes `INSERT … ON CONFLICT DO UPDATE SET` over every column sent. `SupabasePublishTransportTests` pins both halves at the wire.
+>
+> **A brand-new bucket has nothing to inherit.** The trigger reads `bool_or(is_published)` over the bucket's existing rows, so the first show a film-only user ranks lands private however loudly they consented. The drain re-states the standing answer whenever it created rows, which makes "the library matches the answer" true after every drain rather than only after the answer changes.
+>
+> **Two things stop a drain, and the code says so.** No account and a ranking in progress are separate guards with separate reasons, not one `canPublish` flag. Collapsing them would make the mid-comparison case look like a permissions problem the next time somebody reads it.
+>
+> **The consent answer is keyed by user id, not by device.** A second account on the same phone is a different person making a different decision; inheriting the first account's yes is exactly the failure that publishes a stranger's library. `PublishConsentTests.answerIsPerAccount` pins it, and account deletion forgets the answer before the account goes — afterwards there is no id to key it to.
+>
+> **One drain trigger for the library, not five.** The engine drains on `library.revision` rather than after each of the five ranking call sites, because "remember to drain everywhere" is the instruction the vacated-bucket bug got wrong twice. The mid-comparison guard is what makes a central trigger safe: `markWatched` saves a provisional midpoint, and publishing on that save would send a position the user is still deciding.
+>
+> **"Stop publishing" removes what is already there**, or it is a switch that does not do what it says. It deletes all six `(type, sentiment)` buckets — not just the ones with outbox rows, since what is on the server is the sum of every drain ever run. A failed removal offers a retry rather than a promise that something will retry for it.
+>
+> **`-uiTestingMockSocial` publishes into `MockPublishTransport`.** The consent sheet and the Settings publishing section only exist once an account does, which made them the two surfaces hardest to look at. Verified on the simulator: the sheet renders over the real 68-title library with the real count.
 
-**Goal:** What Phases 23–27 built becomes reachable from the running app. Ranking a title publishes its bucket and emits one post; a follower sees it; and the whole social surface is drivable on the simulator without a server.
+**Goal:** What Phases 23–27 built becomes reachable from the running app. Ranking a title syncs its bucket and emits one post; a follower sees it if the user has said they may; and the whole social surface is drivable on the simulator without a server.
+
+> **Update 2026-08-24: steps 5 and 6 are done.** All seven migrations are applied to the hosted project, verified by privilege state rather than by the migration record — `20260823000000` shipped a column `REVOKE` that ran successfully and did nothing, and `20260823010000` is the fix. `rls_test.sql` passes **33/33** locally. The client no longer sends `is_published` at all: the column is revoked from `authenticated`, new rows inherit their bucket's answer from a trigger, and visibility changes go through `set_library_published`.
+>
+> **What is left is step 7 — the two-account walk**, scripted at `MANUAL-QA.md` §7c–7i. Nothing has yet exercised the real client against the deployed policies, which is the only coverage neither the unit suite nor pgTAP provides.
+>
+> **`GAP-AUDIT` §6 is closed too.** `CompositionRootTests.swift` calls the same factories `BingedApp.init()` calls, so the two bugs that a green suite missed today — an engine with no call site, and a migration stage whose from- and to-checksums matched — now fail in the suite instead of on launch.
 
 ### Steps
 
 1. **Consent first.** `Views/Auth/PublishConsentView.swift` — shown once per account on first sign-in with a non-empty library, stating exactly what becomes visible (title, position, sentiment, and the score only once its bucket holds `minimumBucketSizeForScore`) and what never does (untracked items, anything with a nil `externalId`, everything while signed out). Store the answer **keyed by user id**, not per device, so a second account on the same phone is asked again. Until it is granted `drain()` returns 0 and the outbox accrues — which is already its normal signed-out behaviour, so this adds a condition rather than a code path.
-2. **Build the engine in the app.** Add `SupabasePublishTransport` to `WatchRankApp.SocialStack`, construct `SyncEngine(library:transport:feed:currentUserID:)` with `currentUserID: { session.profile?.id }`, and hold it as `@State` beside the other view models — it is `@MainActor`, like them.
+2. **Build the engine in the app.** Add `SupabasePublishTransport` to `BingedApp.SocialStack`, construct `SyncEngine(library:transport:feed:currentUserID:)` with `currentUserID: { session.profile?.id }`, and hold it as `@State` beside the other view models — it is `@MainActor`, like them.
 3. **Drain on four triggers:** sign-in completes, `scenePhase` becomes `.active`, `finalizeRanking` returns, and connectivity returns (`NWPathMonitor` behind a protocol in `Services/`, so tests never touch the real network). `drain()` is idempotent and `@discardableResult` by contract — the payload is always the whole bucket — so an extra trigger costs a no-op request, never a wrong write. The ranking flow calls it *after* finalize and never awaits it: Part III invariant 2.
 4. **Say what is and is not published.** Settings shows the pending count and `SyncEngine.unpublishableCount` in words ("3 titles are not published — the catalog gave them no id"), which is the whole reason that property exists. Revoking consent stops future publishes and offers to remove what is already there.
-5. **Deploy the schema.** `supabase db push` for `20260822000000_moderation`, `20260822010000_client_rpcs` and `20260822020000_follow_list_rpcs`, then re-run `supabase/tests/rls_test.sql` against the hosted project. Until this is done, no client-side result means anything.
+5. **Deploy the schema — outstanding, needs the database password.** `supabase db push` for `20260822000000_moderation`, `20260822010000_client_rpcs` and `20260822020000_follow_list_rpcs`, then re-run `supabase/tests/rls_test.sql` against the hosted project. Until this is done, no client-side result means anything.
 6. **`-uiTestingMockSocial` launch flag.** `makeSocialStack` returns `MockAuthService` / `MockFeedService` / `MockSocialService` seeded with posts, mirroring how `-uiTestingInMemoryStore` and `makeService` already pin UI tests to the bundled catalog and for the same reason. This is what makes the feed, post detail, comments and reactions inspectable on the simulator with no server and no second account — and what makes UI tests of the social surface possible at all.
-7. **The two-account walk, on the real project.** Sign up A and B; B ranks titles and publishes; A follows B; A's *Following* tab shows B's posts, reacts and comments. Script it in `docs/MANUAL-QA.md`. This is the first time the schema, the RLS policies and the client are proven to agree with each other rather than each being tested against a stub of the other two.
+7. **The two-account walk, on the real project — outstanding.** Scripted in `docs/MANUAL-QA.md` §7c–7h; running it needs two accounts and a deployed schema. Sign up A and B; B ranks titles and publishes; A follows B; A's *Following* tab shows B's posts, reacts and comments. Script it in `docs/MANUAL-QA.md`. This is the first time the schema, the RLS policies and the client are proven to agree with each other rather than each being tested against a stub of the other two.
 
 ### Acceptance criteria
 
@@ -1518,13 +1548,79 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 ### Files created / modified
 
-- `WatchRank/WatchRank/WatchRankApp.swift` — the engine, the mock-social flag, the drain triggers
-- `WatchRank/WatchRank/Views/Auth/PublishConsentView.swift` *(new)*
-- `WatchRank/WatchRank/Services/SyncEngine.swift` — the consent gate
-- `WatchRank/WatchRank/Services/Connectivity.swift` *(new)* — `NWPathMonitor` behind a protocol
-- `WatchRank/WatchRank/Views/Settings/SettingsView.swift` — pending and unpublishable counts
-- `WatchRank/WatchRankTests/SyncEngineTests.swift` — consent gating, trigger idempotence
+- `Binged/Binged/BingedApp.swift` — the engine, the mock-social flag, the drain triggers
+- `Binged/Binged/Views/Auth/PublishConsentView.swift` *(new)*
+- `Binged/Binged/Services/SyncEngine.swift` — the consent gate
+- `Binged/Binged/Services/Connectivity.swift` *(new)* — `NWPathMonitor` behind a protocol
+- `Binged/Binged/Views/Settings/SettingsView.swift` — pending and unpublishable counts
+- `Binged/BingedTests/SyncEngineTests.swift` — consent gating, trigger idempotence
 - `docs/MANUAL-QA.md` — the two-account walk; `docs/MANUAL-VERIFICATION.md` — blocker 5
+
+---
+
+# Part IV — Account sync (v2.1)
+
+Designed and built 2026-08-23/24. See [`PART-IV-SYNC.md`](./PART-IV-SYNC.md);
+phases 29–34 are tabled there rather than duplicated here.
+
+---
+
+## Phase 35 — Take the TMDB token out of the bundle ⬜
+
+**Goal:** Stop shipping a credential that anyone can extract from the app.
+
+**Why it is not done yet, deliberately.** The proxy is already written —
+`supabase/functions/tmdb-proxy/index.ts`, a *narrow* allow-list forwarder rather
+than an open one, because an open proxy attached to someone's API key is a gift
+to whoever finds it. What is missing is the client half, and wiring it changes
+**every catalog call in the app**. That is not a change to make in the same week
+as the first two-device sync walk: if search starts failing, nobody will be able
+to tell a sync bug from a proxy bug. Land it after the walk.
+
+**The problem, stated plainly.** `Config/Base.xcconfig` says it itself: the
+token goes into the built bundle, is extractable by anyone with the `.ipa`, and
+"is not acceptable for distribution". Today `TMDBConfiguration.baseURL` is a
+hardcoded `https://api.themoviedb.org/3` and every request carries the TMDB
+bearer token.
+
+### Steps
+
+1. **Make the base URL and the auth scheme configurable together.** They change
+   as a pair: against TMDB the header is the TMDB bearer, against the proxy it
+   is the Supabase anon key. A configuration that lets one change without the
+   other is a way to send the wrong credential to the wrong host.
+2. **Keep the direct path for local development.** A checkout with a
+   `Secrets.xcconfig` should still be able to hit TMDB directly, so a developer
+   is not blocked on a deployed function. Proxy when configured, direct when
+   not, mock when neither — the same three-way fallback the catalog already has.
+3. **Deploy the function and set the secret** — `supabase functions deploy
+   tmdb-proxy`, then `supabase secrets set TMDB_READ_TOKEN=…`. Manual; needs
+   the project owner.
+4. **Check every allow-listed path still works**, particularly
+   `find/tt\d+` (the externalId migration) and `discover/(movie|tv)` (the
+   candidate pool), which are the two the UI does not exercise directly.
+5. **Rate limiting and caching.** The proxy is now a single choke point in front
+   of TMDB for every user. Decide whether it caches, and whether one account can
+   exhaust the key for everyone. `CatalogCache` already absorbs most repeat
+   traffic client-side, so this may be a one-line concern — but it should be a
+   decision rather than an omission.
+6. **Rotate the token afterwards.** Anything that shipped in a bundle should be
+   assumed public, including in TestFlight builds already distributed.
+
+### Acceptance criteria
+
+- A release build contains no TMDB token — grep the built `.app`, as Phase 12
+  did for the opposite reason.
+- Search, detail, discover, genre lists and the id migration all work against
+  the proxy.
+- With the proxy unreachable, the app degrades to the cached pool rather than
+  showing errors on every screen.
+
+### Files created / modified
+
+- `Binged/Binged/Services/TMDBConfiguration.swift`, `TMDBMediaService.swift`
+- `Binged/Config/Base.xcconfig`, `Secrets.xcconfig.example`
+- `supabase/functions/tmdb-proxy/index.ts` (deploy only; already written)
 
 ---
 

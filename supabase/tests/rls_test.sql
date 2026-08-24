@@ -20,7 +20,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path to extensions, public, pg_temp;
 
-select plan(27);
+select plan(33);
 
 -- MARK: - Role switching ------------------------------------------------------
 --
@@ -73,10 +73,34 @@ update public.profiles p set handle = i.name from ids i where p.id = i.id;
 update public.profiles set is_private = true
  where id = (select id from ids where name = 'carol');
 
+-- `is_published` is NOT set on these inserts, and cannot be: the
+-- `ranked_items_inherit_publication` trigger is BEFORE INSERT and
+-- unconditional, so it overwrites whatever a caller sends. That is correct for
+-- the app — a row adopts its bucket's decision, or the account's standing
+-- answer — but it means a fixture cannot seed a published row by INSERT. The
+-- first version of this file tried, and every visibility assertion failed for a
+-- reason unrelated to the policy it was testing.
+--
+-- So publication is applied by UPDATE below, as the table owner. The trigger
+-- does not fire on UPDATE, and the column revoke applies to `authenticated`,
+-- not to the owner.
 insert into public.ranked_items
   (user_id, media_type, external_id, title, year, sentiment, score, rank_in_bucket, bucket_size)
 select id, 'movie', 'tmdb:movie:27205', 'Inception', 2010, 'liked', 9.20, 0, 5
   from ids where name in ('alice', 'carol', 'mallory');
+
+-- Alice keeps one bucket to herself: a TV title she has synced but not
+-- published. Nothing else in this file may see it — assertion 28 — but only
+-- until assertion 31, where `set_library_published(true)` correctly publishes
+-- every bucket she owns, this one included. Do not reorder those two.
+insert into public.ranked_items
+  (user_id, media_type, external_id, title, year, sentiment, score, rank_in_bucket, bucket_size)
+select id, 'tv_show', 'tmdb:tv:1396', 'Breaking Bad', 2008, 'liked', 9.60, 0, 5
+  from ids where name = 'alice';
+
+-- Everyone's film bucket is published; Alice's TV bucket is not. Both audiences
+-- of the select policy are now exercisable.
+update public.ranked_items set is_published = true where media_type = 'movie';
 
 insert into public.posts (id, user_id, kind, media_type, external_id, payload)
 select ('aaaaaaaa-0000-0000-0000-00000000000' || row_number() over (order by name))::uuid,
@@ -130,7 +154,7 @@ select is(
   (select count(*)::int from public.ranked_items
     where user_id = (select id from ids where name = 'alice')),
   1,
-  'a public library is readable by any signed-in user');
+  'a published row is readable by any signed-in user');
 
 select is(
   (select count(*)::int from public.ranked_items
@@ -364,4 +388,86 @@ select is(
   'a public account you do not follow is readable but not in your feed');
 
 select * from finish();
+-- MARK: - 28–31. Stored is not the same as visible -----------------------------
+--
+-- Part IV (`docs/PART-IV-SYNC.md`). A signed-in user's whole library reaches the
+-- server unconditionally; `is_published` decides what anyone else sees. These
+-- four are the assertions that make that a database guarantee rather than a
+-- client convention, and three of them are negative for the usual reason: the
+-- anon key ships in the bundle, so what matters is what Postgres refuses.
+
+select tests_as_owner();
+select tests_login((select id from ids where name = 'bob'));
+
+select is(
+  (select count(*)::int from public.ranked_items
+    where user_id = (select id from ids where name = 'alice')
+      and media_type = 'tv_show'),
+  0,
+  'an unpublished row is invisible to others');
+
+select tests_as_owner();
+select tests_login((select id from ids where name = 'alice'));
+
+select is(
+  (select count(*)::int from public.ranked_items where user_id = auth.uid()),
+  2,
+  'the owner reads her whole library, published or not');
+
+-- The column revoke is what stops a client flipping one row and leaving a
+-- bucket half-visible, which would let a viewer read `bucket_size` against rows
+-- they cannot see.
+select throws_ok(
+  $q$update public.ranked_items set is_published = true where media_type = 'tv_show'$q$::text,
+  '42501'::text,
+  null::text,
+  'a client cannot set is_published directly');
+
+-- And the RPC moves a whole bucket, which is the only granularity that keeps
+-- `bucket_size` honest.
+select is(
+  public.set_library_published(true),
+  2,
+  'set_library_published flips every row it owns');
+
+-- `where user_id = auth.uid()` inside the function body is now the ONLY
+-- boundary protecting every account's library, because the function is
+-- SECURITY DEFINER and writes past the column revoke. A future edit that
+-- parameterised it — for an admin screen, say — would remove that boundary
+-- without failing anything else in this file. So it gets its own assertion.
+--
+-- **As the owner, deliberately.** Read as alice this cannot distinguish "the
+-- RPC did not modify these rows" from "alice may not see these rows" — and at
+-- this point she may not: she has no active follow to carol, so RLS hides that
+-- library and the count is 0 for a reason unrelated to the boundary. Reading as
+-- owner bypasses RLS and asks the question actually being asked. `auth.uid()`
+-- is null for the owner, so alice is named by id instead.
+--
+-- Expected 1, not 2: mallory's account was deleted at assertion 25, so carol is
+-- the only other library still standing.
+select tests_as_owner();
+
+select is(
+  (select count(*)::int from public.ranked_items
+    where user_id <> (select id from ids where name = 'alice')
+      and is_published),
+  1,
+  'set_library_published touched nobody else''s rows');
+
+select tests_login((select id from ids where name = 'alice'));
+
+-- The empty-bucket case. A consented user ranking into a bucket that has no
+-- rows yet must inherit the account's standing answer, or their first TV show
+-- lands silently private and the only symptom is a follower not seeing it.
+insert into public.ranked_items
+  (user_id, media_type, external_id, title, year, sentiment, score, rank_in_bucket, bucket_size)
+values (auth.uid(), 'movie', 'tmdb:movie:603', 'The Matrix', 1999, 'fine', 5.10, 0, 1);
+
+select is(
+  (select is_published from public.ranked_items
+    where user_id = auth.uid() and external_id = 'tmdb:movie:603'),
+  true,
+  'a new bucket adopts the standing answer');
+
+
 rollback;

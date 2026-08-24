@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# WatchRank local deploy: build -> unit tests -> install -> launch on the sim.
+# Binged local deploy: build -> unit tests -> install -> launch on the sim.
 #
 #   ./scripts/deploy.sh              # normal run, keeps your library data
 #   ./scripts/deploy.sh --clean      # wipe the app first (after a MediaItem schema change)
@@ -12,10 +12,10 @@
 #
 set -euo pipefail
 
-SCHEME="WatchRank"
+SCHEME="Binged"
 DEVICE_NAME="iPhone 16"
-TEST_PLAN="WatchRankUnit"
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../WatchRank" && pwd)"
+TEST_PLAN="BingedUnit"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../Binged" && pwd)"
 DERIVED="$PROJECT_DIR/build/dd"
 APP="$DERIVED/Build/Products/Debug-iphonesimulator/$SCHEME.app"
 

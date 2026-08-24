@@ -18,7 +18,7 @@
 
 ## 1. The product in one paragraph
 
-WatchRank becomes a place where your ranking is *seen*. You keep a private,
+Binged becomes a place where your ranking is *seen*. You keep a private,
 derived, pairwise-built ranking exactly as before, and you choose to publish it
 under a handle. You follow people, their ranking activity arrives in a feed —
 "Alex ranked *Dune* #1 in Liked it", "Sam wants to watch *Sinners*" — and you
@@ -275,13 +275,29 @@ background task, on foreground, and on connectivity return. Idempotent by
 construction — the payload is the full bucket, so a retry is a no-op, and the
 queue survives a crash.
 
-**Conflicts, honestly stated:** v2.0 assumes **one device per account**.
-Last-write-wins per bucket, keyed on `updated_at`. Two devices ranking
-concurrently produce two internally-consistent bucket orders and one of them
-loses wholesale. That is acceptable for v2.0 and unacceptable for long — real
-multi-device sync means either making the server authoritative for order (which
-breaks invariant 1) or storing the comparison *decisions* rather than their
-results and replaying them. Deliberately deferred; see open question 3.
+**Conflicts:** ~~v2.0 assumes one device per account.~~ **Superseded by Part IV
+(2026-08-23) — see [`PART-IV-SYNC.md`](./PART-IV-SYNC.md).** Two things in this
+section changed:
+
+1. **The server is no longer a published projection of the device.** It holds
+   the user's whole library, unconditionally once signed in, and `is_published`
+   decides separately what other accounts can see. "What leaves the device"
+   above still holds for a signed-out user and for nil-`externalId` titles; it
+   no longer holds for the published/unpublished distinction.
+2. **Multi-device is supported rather than assumed away.** Sign-in restores the
+   account's library and merges it with the device's, keyed on `externalId`.
+   Nothing is discarded. A *sentiment* disagreement is resolved by the newest
+   deliberate act (`MediaItem.lastRankedAt` against the row's `updated_at`); a
+   *position* disagreement is not treated as a conflict at all, because rule 4
+   says the user never chose a position.
+
+**What is still true, and still uncomfortable:** two devices ranking
+concurrently produce an order neither of them chose. Merge means nothing is
+*lost* — a real improvement on losing a bucket wholesale — but a merged bucket
+is a union of two partial orders that never met, and the user may find their top
+five rearranged by a merge rather than by a comparison they made. The principled
+fix remains storing comparison *decisions* rather than derived positions, which
+is still unbuilt and still worth its own phase.
 
 ## 9. Feed design
 
@@ -335,7 +351,7 @@ instead of being a view over it.
 ## 11. Client architecture
 
 ```
-WatchRank/
+Binged/
   Models/
     UserProfile.swift        // remote identity; not a @Model
     FollowState.swift
@@ -432,11 +448,18 @@ release blockers. Phase 28 exists for these and should not be compressed.
    Follow is the simpler graph and the better default for a small network
    (you can consume before anyone accepts you), and `is_private` covers the
    people who want approval. Confirm before Phase 24.
-3. **Multi-device.** Section 8 assumes one device and loses a bucket wholesale
-   on conflict. The principled fix is publishing comparison *decisions* rather
-   than derived positions, which would let any device replay the ranking — and
-   which is a genuinely interesting idea worth its own phase, because it also
-   makes the ranking portable and auditable. Not v2.0.
+3. ~~**Multi-device.**~~ **Answered by Part IV (2026-08-23).** A device no
+   longer loses a bucket wholesale: sign-in restores the account's library and
+   merges both sides, and only a sentiment disagreement is treated as a
+   conflict. See [`PART-IV-SYNC.md`](./PART-IV-SYNC.md) §6.3.
+
+   The *other* half of this question is still open, and is now the more
+   interesting half: publishing comparison **decisions** rather than derived
+   positions would let any device replay a ranking, making a merged bucket
+   reproducible rather than merely non-destructive — and making the ranking
+   portable and auditable as a side effect. Part IV does not do it, and
+   deliberately does not make it harder: the outbox and the merge both sit above
+   `RankingEngine`, which stays pure either way.
 4. **Does social signal feed back into recommendations?** Part II predicts from
    your own residuals. "People whose ranking correlates with yours ranked this
    highly" is a materially better predictor and arrives free with the social
