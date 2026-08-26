@@ -715,6 +715,34 @@ struct RecommendationEngineLOOTests {
         #expect(abs(viaHelper.center - direct.center) < 0.0000001)
         #expect(viaHelper.sampleSize == direct.sampleSize)
     }
+
+    @Test("Type calibration restricts holdouts, not the training profile")
+    func calibrationIsPerType() {
+        let engine = RecommendationEngine()
+        let movies = makePlanFixtureLibrary()
+        let tvScores = bucketScores(count: 8, range: Sentiment.liked.scoreRange)
+        let shows = tvScores.enumerated().map { index, score in
+            makeScored(
+                "show-\(index)",
+                score: score,
+                type: .tvShow,
+                features: [index < 4 ? horror : filler],
+                sentiment: .liked
+            )
+        }
+        let library = movies + shows
+
+        let moviePairs = engine.leaveOneOutPairs(for: library, holdingOut: .movie)
+        let showPairs = engine.leaveOneOutPairs(for: library, holdingOut: .tvShow)
+
+        #expect(moviePairs.count == movies.count)
+        #expect(showPairs.count == shows.count)
+
+        let direct = RatingCalibration.fit(pairs: showPairs)
+        let viaHelper = engine.calibration(for: library, type: .tvShow)
+        #expect(viaHelper == direct)
+        #expect(viaHelper.sampleSize == shows.count)
+    }
 }
 
 // MARK: - Purity and scale

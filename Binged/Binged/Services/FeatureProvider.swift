@@ -105,6 +105,10 @@ final class FeatureProvider {
                 item.tmdbVoteAverage = voteAverage
                 changed = true
             }
+            if let voteCount = result.voteCount {
+                item.tmdbVoteCount = voteCount
+                changed = true
+            }
             // Not gated on `keys`: a title whose features came back empty still
             // has artwork, and gating the two together is what would keep the
             // gradient.
@@ -161,6 +165,7 @@ final class FeatureProvider {
                             itemID: request.itemID,
                             keys: extracted.keys,
                             voteAverage: extracted.voteAverage,
+                            voteCount: extracted.voteCount,
                             posterURL: extracted.posterURL
                         )
                     }
@@ -185,6 +190,7 @@ final class FeatureProvider {
         let itemID: UUID
         let keys: [String]
         let voteAverage: Double?
+        let voteCount: Int?
         let posterURL: String?
     }
 }

@@ -21,52 +21,105 @@ struct FeedPostCard: View {
     var onOpenActor: (() -> Void)?
     var onOpenComments: (() -> Void)?
 
+    /// Opens the title itself. `nil` where there is nowhere to go — the same
+    /// convention `onOpenActor` uses, so a card rendered without a navigation
+    /// stack draws the block as plain text rather than as a dead button.
+    var onOpenTitle: (() -> Void)?
+
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
             header
 
-            HStack(alignment: .top, spacing: Spacing.md) {
-                PosterPlaceholder(title: post.payload.title)
-                    .frame(width: 52, height: 78)
-
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text(post.payload.title)
-                        .font(.body.weight(.semibold))
-                        .lineLimit(2)
-
-                    Text("\(String(post.payload.year)) · \(post.payload.mediaType.displayName)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    if let rank = post.rankDescription {
-                        // The *earned* rank. This is the thing that makes the
-                        // feed worth reading — a feed of numbers people typed
-                        // would be worthless; these came from comparisons.
-                        Text(rank)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.accentColor)
-                    }
-
-                    if let excerpt = post.payload.reviewExcerpt, !excerpt.isEmpty {
-                        Text(excerpt)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(3)
-                    }
-                }
-                Spacer(minLength: 0)
+            // The title block is the tap target, poster included: a feed is
+            // read by scanning artwork, so the picture is the thing a reader
+            // aims at, not a link on the words beside it.
+            Button {
+                onOpenTitle?()
+            } label: {
+                titleBlock
             }
+            .buttonStyle(.plain)
+            .disabled(onOpenTitle == nil)
             // Combined here rather than over the whole card. `.combine` on the
             // container flattened the footer into it, which left Like and
             // Comment — and so the whole comment thread, with the report
             // controls inside it — unreachable under VoiceOver.
             .accessibilityElement(children: .combine)
             .accessibilityLabel(post.sentence)
+            .accessibilityHint(onOpenTitle == nil ? "" : "Opens \(post.payload.title)")
+
+            if let review = post.payload.reviewExcerpt, !review.isEmpty {
+                reviewBlock(review)
+            }
 
             footer
         }
         .padding(.vertical, Spacing.sm)
         .accessibilityElement(children: .contain)
+    }
+
+    // MARK: Title
+
+    private var titleBlock: some View {
+        HStack(alignment: .top, spacing: Spacing.md) {
+            // Real artwork where the post carries a path, and the same gradient
+            // as before where it does not — which is every post written before
+            // `poster_path` was added to the payload.
+            PosterView(title: post.payload.title, posterURL: post.payload.posterURL)
+                .frame(width: 52, height: 78)
+
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text(post.payload.title)
+                    .font(.body.weight(.semibold))
+                    .lineLimit(2)
+
+                Text("\(String(post.payload.year)) · \(post.payload.mediaType.displayName)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if let rank = post.rankDescription {
+                    // The *earned* rank. This is the thing that makes the feed
+                    // worth reading — a feed of numbers people typed would be
+                    // worthless; these came from comparisons.
+                    Text(rank)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            Spacer(minLength: 0)
+
+            if onOpenTitle != nil {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+
+    // MARK: Review
+
+    /// The author's own words, given their own block under the title rather
+    /// than a third caption squeezed beside the poster.
+    ///
+    /// It is the only part of a post that is *writing* rather than a derived
+    /// fact, so it reads as a quotation: full width, its own type, and a rule
+    /// down the side marking where the app stops talking and the author starts.
+    private func reviewBlock(_ review: String) -> some View {
+        Text(review)
+            .font(.callout)
+            .foregroundStyle(.primary)
+            .lineLimit(4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, Spacing.md)
+            .overlay(alignment: .leading) {
+                Capsule()
+                    .fill(Color.accentColor.opacity(0.35))
+                    .frame(width: 3)
+            }
+            .padding(.top, Spacing.xs)
+            .accessibilityLabel("\(post.authorName) wrote: \(review)")
     }
 
     // MARK: Header
@@ -140,7 +193,11 @@ struct FeedPostCard: View {
 // MARK: - Previews
 
 #if DEBUG
-private func previewPost(kind: FeedPost.Kind = .ranked, bucketSize: Int? = 8) -> FeedPost {
+private func previewPost(
+    kind: FeedPost.Kind = .ranked,
+    bucketSize: Int? = 8,
+    review: String? = nil
+) -> FeedPost {
     FeedPost(
         id: UUID(), authorID: UUID(), kind: kind, createdAt: Date().addingTimeInterval(-3600),
         authorHandle: "alex", authorDisplayName: "Alex", authorAvatarURL: nil,
@@ -148,7 +205,8 @@ private func previewPost(kind: FeedPost.Kind = .ranked, bucketSize: Int? = 8) ->
             externalId: "tmdb:movie:1", title: "Dune: Part Two", year: 2024,
             mediaType: .movie, sentiment: kind == .ranked ? .liked : nil,
             rankInBucket: kind == .ranked ? 0 : nil, bucketSize: bucketSize,
-            reviewExcerpt: nil
+            reviewExcerpt: review,
+            posterPath: nil
         ),
         commentCount: 3, reactionCount: 12, viewerHasReacted: false
     )
@@ -156,10 +214,18 @@ private func previewPost(kind: FeedPost.Kind = .ranked, bucketSize: Int? = 8) ->
 
 #Preview {
     List {
-        FeedPostCard(post: previewPost())
+        FeedPostCard(post: previewPost(), onOpenTitle: {})
+        FeedPostCard(
+            post: previewPost(
+                review: "The desert stuff is astonishing and the politics finally "
+                      + "land. Second half drags a little."
+            ),
+            onOpenTitle: {}
+        )
         FeedPostCard(post: previewPost(kind: .wantToWatch, bucketSize: nil))
         // A bucket of one earns no rank line — rule 6, in the feed.
         FeedPostCard(post: previewPost(bucketSize: 1))
     }
+    .listStyle(.plain)
 }
 #endif

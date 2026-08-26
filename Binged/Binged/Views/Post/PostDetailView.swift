@@ -21,10 +21,21 @@ struct PostDetailView: View {
     @State private var reportTarget: ReportTarget?
     @State private var blockCandidate: BlockCandidate?
 
-    init(post: FeedPost, service: FeedService, viewerID: UUID?, social: SocialService? = nil) {
+    /// Where a tapped title goes. Supplied by the stack that owns the routing,
+    /// like `FeedView`'s — this screen registers no destinations of its own.
+    private let onOpenTitle: ((TitleReference) -> Void)?
+
+    init(
+        post: FeedPost,
+        service: FeedService,
+        viewerID: UUID?,
+        social: SocialService? = nil,
+        onOpenTitle: ((TitleReference) -> Void)? = nil
+    ) {
         _viewModel = State(initialValue: PostViewModel(
             post: post, service: service, viewerID: viewerID, social: social
         ))
+        self.onOpenTitle = onOpenTitle
     }
 
     /// Who is about to be blocked, and under what name to ask about it.
@@ -36,9 +47,16 @@ struct PostDetailView: View {
     var body: some View {
         List {
             Section {
-                FeedPostCard(post: viewModel.post) {
-                    Task { await viewModel.toggleReaction() }
-                }
+                FeedPostCard(
+                    post: viewModel.post,
+                    onReact: { Task { await viewModel.toggleReaction() } },
+                    // Reachable from here too: somebody who opened the thread
+                    // to read the argument is the reader most likely to want
+                    // the film itself.
+                    onOpenTitle: onOpenTitle.map { open in
+                        { open(viewModel.post.payload.reference) }
+                    }
+                )
             }
 
             Section("Comments") {
@@ -54,6 +72,15 @@ struct PostDetailView: View {
                                 Button(role: .destructive) {
                                     Task { await viewModel.delete(comment) }
                                 } label: { Label("Delete", systemImage: "trash") }
+                            }
+                            // Narrower than Delete on purpose: a post's owner
+                            // may hide a comment on their own post but never
+                            // rewrite its words under its author's name.
+                            if viewModel.canEdit(comment) {
+                                Button {
+                                    viewModel.beginEditing(comment)
+                                } label: { Label("Edit", systemImage: "pencil") }
+                                .tint(.blue)
                             }
                             // Reporting is reachable wherever content appears,
                             // not only from Settings.
@@ -103,6 +130,9 @@ struct PostDetailView: View {
                 Task { await viewModel.report(target, reason: reason, note: note) }
             }
         }
+        .sheet(isPresented: editorPrompt) {
+            CommentEditor(viewModel: viewModel)
+        }
         .alert(item: $blockCandidate) { candidate in
             Alert(
                 title: Text("Block \(candidate.name)?"),
@@ -131,6 +161,17 @@ struct PostDetailView: View {
 
     private var errorPrompt: Binding<Bool> {
         Binding(get: { viewModel.lastError != nil }, set: { if !$0 { viewModel.clearError() } })
+    }
+
+    /// Driven by `editingID` rather than by a local `@State`, so the one place
+    /// that knows whether an edit is in flight is the view model. Dismissing by
+    /// swipe therefore clears the draft too, instead of leaving a hidden edit
+    /// open behind the sheet.
+    private var editorPrompt: Binding<Bool> {
+        Binding(
+            get: { viewModel.editingComment != nil },
+            set: { if !$0 { viewModel.cancelEditing() } }
+        )
     }
 
     // MARK: Composer
@@ -182,6 +223,14 @@ struct CommentRow: View {
                 Text(comment.authorName).font(.caption.weight(.semibold))
                 Text(comment.createdAt, format: .relative(presentation: .numeric))
                     .font(.caption2).foregroundStyle(.secondary)
+                // Visible, because an edit that leaves no trace lets a comment
+                // somebody already read, replied to or reported quietly become
+                // a different comment.
+                if comment.isEdited {
+                    Text("edited")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
             Text(comment.displayBody)
                 .font(.callout)
@@ -190,54 +239,10 @@ struct CommentRow: View {
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(comment.authorName): \(comment.displayBody)")
-    }
-}
-
-// MARK: - ReportSheet
-
-struct ReportSheet: View {
-
-    let target: ReportTarget
-    let onSubmit: (ReportReason, String?) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var reason: ReportReason = .spam
-    @State private var note = ""
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Why are you reporting this?") {
-                    Picker("Reason", selection: $reason) {
-                        ForEach(ReportReason.allCases) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
-                }
-                Section("Anything else? (optional)") {
-                    TextField("Details", text: $note, axis: .vertical).lineLimit(2...5)
-                }
-                Section {
-                    Text("Reports are reviewed within 24 hours. You can also block "
-                         + "this person so you stop seeing their content immediately.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-            }
-            .navigationTitle("Report")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Submit") {
-                        onSubmit(reason, note.isEmpty ? nil : note)
-                        dismiss()
-                    }
-                }
-            }
-        }
+        // The marker has to reach VoiceOver too, or it is a disclosure only
+        // sighted readers get.
+        .accessibilityLabel(
+            "\(comment.authorName): \(comment.displayBody)\(comment.isEdited ? ", edited" : "")"
+        )
     }
 }

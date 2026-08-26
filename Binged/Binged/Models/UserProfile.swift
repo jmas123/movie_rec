@@ -123,4 +123,33 @@ enum Handle {
     }
 
     static func isValid(_ raw: String) -> Bool { validate(raw) == nil }
+
+    // MARK: Placeholders
+
+    /// The handle an account is born with, before the chosen one is claimed.
+    ///
+    /// **This mirrors `app.handle_new_user()` exactly** — `'u' ||
+    /// substr(replace(new.id::text, '-', ''), 1, 19)` in
+    /// `20260821210000_social.sql`. A profile row exists the instant the
+    /// `auth.users` row does, because a NOT NULL unique column cannot wait for
+    /// the client, and this is what the trigger puts there.
+    ///
+    /// Deriving it rather than pattern-matching it matters: `u` followed by 19
+    /// hex characters is also a handle a person could legitimately claim, so a
+    /// heuristic would occasionally offer to overwrite somebody's real handle.
+    /// Comparing against the value computed *for that specific user id* has no
+    /// false positives.
+    ///
+    /// Note it is exactly `maximumLength` characters, which is why `validate`
+    /// accepts it — the trigger and the constraint were written together.
+    static func placeholder(for userID: UUID) -> String {
+        let hex = userID.uuidString.lowercased().replacingOccurrences(of: "-", with: "")
+        return "u" + hex.prefix(19)
+    }
+
+    /// Whether this profile is still wearing the handle the trigger gave it,
+    /// meaning the user's chosen handle never landed.
+    static func isPlaceholder(_ handle: String, for userID: UUID) -> Bool {
+        normalize(handle) == placeholder(for: userID)
+    }
 }

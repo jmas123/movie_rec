@@ -381,7 +381,21 @@ second account see it?" and "did my own library survive?".
 2. Rank something on B. **Expect:** it appears in A's Following feed.
 3. Comment and react from A. **Expect:** both appear on the post, and the count
    on the card matches the detail screen.
-4. Scroll the feed past one page. **Expect:** more posts load, and the loading
+
+   > **This step is a regression check now, not a formality.** Until 2026-08-25
+   > `addComment` inserted a column named `author_id` into a table whose column
+   > is `user_id`, and decoded an insert's bare row as a `PostComment`, which
+   > needs three joined author fields. Either fault alone is fatal, so **posting
+   > a comment had never once worked against a real database** — invisible to
+   > the suite, because `MockFeedService` builds its return value in memory and
+   > so cannot disagree with a column name. It now goes through the
+   > `add_comment` RPC. Confirm the comment appears **with the author's handle
+   > and display name on it**: a comment that posts but renders nameless means
+   > the join, not the insert, is what broke.
+4. Edit your own comment from A. **Expect:** the new text, an "edited" marker,
+   and no Edit action offered on anybody else's comment — including on a post A
+   owns, where A may delete a comment but must never be able to rewrite it.
+5. Scroll the feed past one page. **Expect:** more posts load, and the loading
    row announces itself to VoiceOver rather than sitting silent.
 
 ### 7e. Privacy and safety

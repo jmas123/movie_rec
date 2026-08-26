@@ -195,6 +195,16 @@ enum CatalogCacheKey {
         "features:\(TMDBIdentifier.segment(for: type)):\(tmdbId)"
     }
 
+    /// The detail-screen payload: credits plus streaming availability.
+    ///
+    /// A third key against the same path, for the same reason `features` is a
+    /// second one — the payloads differ, and letting a thinner response satisfy
+    /// a request for a richer one yields a screen that is silently missing its
+    /// cast for a week.
+    static func display(type: MediaType, tmdbId: Int) -> String {
+        "display:\(TMDBIdentifier.segment(for: type)):\(tmdbId)"
+    }
+
     /// Keyed by the IMDb id alone: `/find` is a pure lookup and its answer does
     /// not depend on what the caller expected the type to be.
     static func find(imdbID: String) -> String {

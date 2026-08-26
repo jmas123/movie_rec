@@ -72,3 +72,6 @@ __pycache__/
 # Xcode build output / derived data from local xcodebuild runs
 Binged/build/
 .library-backup-*/
+
+# Offline recommender evaluation working directory (scripts/eval/run.sh)
+.eval/

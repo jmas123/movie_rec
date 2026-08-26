@@ -195,6 +195,45 @@ struct SocialServiceTests {
     }
 }
 
+@Suite("Searching never returns the viewer")
+struct SelfExclusionTests {
+
+    @Test("The mock leaves the viewer out of their own results")
+    func mockExcludesViewer() async throws {
+        // Your own row is the one result you were certainly not looking for,
+        // and it carries a Follow button that cannot work.
+        let viewer = person("alexandra")
+        let other = person("alexis")
+        let service = MockSocialService(viewer: viewer.id, people: [viewer, other])
+
+        let found = try await service.searchUsers(query: "alex", limit: 10)
+
+        #expect(found.map(\.handle) == ["alexis"], "the viewer searched and found themselves")
+    }
+
+    @Test("The viewer is excluded in the query, not after the fact")
+    func supabaseFiltersInQuery() async throws {
+        // Filtering client-side after the response would let the viewer's own
+        // row consume one of the `limit` slots, quietly costing a real result
+        // on a full page.
+        let viewerID = UUID(uuidString: "00000000-0000-0000-0000-0000000000AA")!
+        let log = RequestLog()
+        let client = makeSupabaseClient(
+            session: makeSession(userID: viewerID),
+            log: log
+        ) { _ in .status(200, SupabaseFixtures.emptyArray) }
+
+        let service = SupabaseSocialService(
+            client: client, configuration: makeSupabaseConfiguration()
+        )
+        _ = try await service.searchUsers(query: "alex", limit: 25)
+
+        let sent = log.urls.first ?? ""
+        let excluded = sent.contains("id=neq.\(viewerID.uuidString.lowercased())")
+        #expect(excluded, "no self-exclusion reached the wire: \(sent)")
+    }
+}
+
 // MARK: - View model
 
 @Suite("UserSearchViewModel")
@@ -252,6 +291,47 @@ struct UserSearchViewModelTests {
 
         await viewModel.block(target)
         #expect(!viewModel.results.contains { $0.id == target.id })
+    }
+
+    @Test("Retry re-runs the failed search instead of just clearing the message")
+    func retryReRunsSearch() async {
+        // The error state offers Try again, so it has to actually try again.
+        // Merely clearing the message would drop the user on a prompt screen
+        // holding the query they had already typed.
+        final class FlakySocial: SocialService, @unchecked Sendable {
+            var attempts = 0
+            func searchUsers(query: String, limit: Int) async throws -> [UserProfile] {
+                attempts += 1
+                if attempts == 1 { throw SocialError.blocked }
+                return [person("alex")]
+            }
+            func profile(handle: String) async throws -> UserProfile? { nil }
+            func relationship(with userID: UUID) async throws -> SocialRelationship { .unknown }
+            func follow(_ userID: UUID) async throws -> FollowState { .active }
+            func unfollow(_ userID: UUID) async throws {}
+            func pendingRequests() async throws -> [UserProfile] { [] }
+            func acceptRequest(from userID: UUID) async throws {}
+            func rejectRequest(from userID: UUID) async throws {}
+            func followers(of userID: UUID, limit: Int) async throws -> [UserProfile] { [] }
+            func following(of userID: UUID, limit: Int) async throws -> [UserProfile] { [] }
+            func block(_ userID: UUID) async throws {}
+            func unblock(_ userID: UUID) async throws {}
+            func blockedAccounts() async throws -> [UserProfile] { [] }
+        }
+
+        let service = FlakySocial()
+        let viewModel = UserSearchViewModel(service: service)
+
+        viewModel.query = "alex"
+        try? await Task.sleep(for: .milliseconds(500))
+        #expect(viewModel.phase == .error(SocialError.blocked.description))
+
+        viewModel.retry()
+        try? await Task.sleep(for: .milliseconds(200))
+
+        #expect(service.attempts == 2, "Try again did not reach the service")
+        #expect(viewModel.phase == .results)
+        #expect(viewModel.results.map(\.handle) == ["alex"])
     }
 
     @Test("An empty query returns to the prompt state")

@@ -48,6 +48,11 @@ final class RecommendationViewModel {
     /// genre alone is not going to reach the top twenty on keywords.
     static let rerankDepth = 60
 
+    /// Maximum simultaneous detail requests during stage-two reranking.
+    /// Sixty serial round trips makes the improved candidate pool feel broken;
+    /// a narrow window keeps latency bounded without flooding TMDB.
+    static let rerankConcurrency = 8
+
     /// The share of the returned list any one genre may occupy.
     static let genreCap = 0.4
 
@@ -59,7 +64,7 @@ final class RecommendationViewModel {
 
     @ObservationIgnored private let library: MediaLibraryViewModel
     @ObservationIgnored private let poolBuilder: CandidatePoolBuilder
-    @ObservationIgnored private let engine: RecommendationEngine
+    @ObservationIgnored private let hybridEngine: HybridRecommendationEngine
     @ObservationIgnored private let featureSource: FeatureSource?
 
     // MARK: - Observable state
@@ -74,18 +79,10 @@ final class RecommendationViewModel {
     /// makes the difference observable instead of inferred.
     private(set) var profileRebuilds = 0
 
-    /// How many times the rating calibration has been fitted. Same purpose as
-    /// `profileRebuilds`: fitting is O(library) profile builds, so doing it per
-    /// request rather than per library change is the expensive mistake.
-    private(set) var calibrationFits = 0
-
     // MARK: - Cached profile
 
-    @ObservationIgnored private var cachedProfile: TasteProfile?
+    @ObservationIgnored private var cachedProfile: HybridRecommendationEngine.Profile?
     @ObservationIgnored private var cachedProfileRevision: Int?
-
-    @ObservationIgnored private var cachedCalibration: RatingCalibration?
-    @ObservationIgnored private var cachedCalibrationRevision: Int?
 
     // MARK: - Init
 
@@ -97,7 +94,7 @@ final class RecommendationViewModel {
     ) {
         self.library = library
         self.poolBuilder = poolBuilder
-        self.engine = engine
+        self.hybridEngine = HybridRecommendationEngine(contentEngine: engine)
         self.featureSource = featureSource
     }
 
@@ -148,14 +145,18 @@ final class RecommendationViewModel {
         }
 
         let profile = profile(for: watched)
-        let baseline = profile.baseline(for: type)
+        let baseline = hybridEngine.baseline(for: type, using: profile)
 
         // Stage 1 — the whole mood pool, on features that cost no network call.
         let stageOne = candidates
             .map { pooled -> Scored in
-                let features = CandidateFeatures(pooled.makeMediaItem())
-                return Scored(pooled: pooled, features: features,
-                              predicted: engine.predict(features, using: profile))
+                let item = pooled.makeMediaItem()
+                let features = CandidateFeatures(item)
+                return Scored(
+                    pooled: pooled,
+                    features: features,
+                    predicted: hybridEngine.predict(item: item, features: features, using: profile)
+                )
             }
             .sorted { sortsBefore($0, $1, mood: mood, baseline: baseline) }
 
@@ -167,26 +168,20 @@ final class RecommendationViewModel {
 
         let diversified = applyGenreCap(to: reranked, limit: limit, capBasis: Self.pageSize)
 
-        // Map onto the user's own scale.
-        //
-        // A per-user affine transform learned from leave-one-out error, so a
-        // candidate's displayed rating depends only on what the model thinks of
-        // *it* — never on which other candidates it happened to be listed
-        // beside. The batch is irrelevant here, and that is the point: the
-        // previous percentile map handed the top of every mood's list the
-        // user's maximum score by arithmetic.
-        let calibration = calibration(for: watched)
-        let calibrated = diversified.map { $0.predicted.withDisplayValue(
-            calibration.apply($0.predicted.value)
-        ) }
-
-        return .ready(zip(diversified, calibrated).map { scored, predicted in
+        // The hybrid predicts the user's actual sentiment band and position
+        // inside it, so it is already on the earned 0...10 scale. Applying the
+        // legacy residual model's stretch here double-calibrates it and pushes
+        // ordinary Liked predictions toward 10.
+        return .ready(diversified.map { selection in
             Recommendation(
-                item: scored.pooled.makeMediaItem(),
-                predicted: predicted,
+                item: selection.scored.pooled.makeMediaItem(),
+                predicted: selection.scored.predicted,
                 moodWeight: mood.relevance(isPoolMember: true),
-                isQueued: queued.contains(ExternalID.canonical(scored.pooled.externalId)),
-                lift: predicted.value - baseline
+                isQueued: queued.contains(
+                    ExternalID.canonical(selection.scored.pooled.externalId)
+                ),
+                lift: selection.scored.predicted.value - baseline,
+                isExploration: selection.isExploration
             )
         })
     }
@@ -215,35 +210,39 @@ final class RecommendationViewModel {
         let profile = profile(for: watched)
 
         var features = CandidateFeatures(item)
+        var voteAverage = item.tmdbVoteAverage
+        var voteCount = item.tmdbVoteCount
         var isEnriched = false
         if let enriched = await enrichedFeatures(for: item) {
-            features = enriched
+            features = CandidateFeatures(id: item.id, type: item.type, keys: enriched.keys)
+            voteAverage = enriched.voteAverage ?? voteAverage
+            voteCount = enriched.voteCount ?? voteCount
             isEnriched = true
         }
 
-        let raw = engine.predict(features, using: profile)
-        let calibrated = raw.withDisplayValue(calibration(for: watched).apply(raw.value))
-
+        let raw = hybridEngine.predict(
+            item: item,
+            features: features,
+            using: profile,
+            voteAverage: voteAverage,
+            voteCount: voteCount
+        )
         return TitlePrediction(
-            predicted: calibrated,
-            // Lift tracks the *raw* estimate: calibration is a display
-            // transform, and letting it move the lift would make the
-            // qualitative band depend on how confident the app happens to be,
-            // which is the other axis entirely.
-            lift: raw.value - profile.baseline(for: item.type),
+            predicted: raw,
+            lift: raw.value - hybridEngine.baseline(for: item.type, using: profile),
             isEnriched: isEnriched
         )
     }
 
-    private func enrichedFeatures(for item: MediaItem) async -> CandidateFeatures? {
+    private func enrichedFeatures(
+        for item: MediaItem
+    ) async -> TMDBMediaService.ExtractedFeatures? {
         guard let featureSource,
               let externalId = item.externalId,
               let parsed = TMDBIdentifier.parse(externalId),
-              let fetched = await featureSource.features(type: parsed.type, tmdbId: parsed.tmdbId),
-              !fetched.keys.isEmpty
+              let fetched = await featureSource.features(type: parsed.type, tmdbId: parsed.tmdbId)
         else { return nil }
-
-        return CandidateFeatures(id: item.id, type: item.type, keys: fetched.keys)
+        return fetched
     }
 
     // MARK: - Profile
@@ -253,35 +252,17 @@ final class RecommendationViewModel {
     ///
     /// Building per candidate would be O(library × pool) — over 1200 candidates
     /// that is the difference between an instant screen and a visible hang.
-    private func profile(for watched: [MediaItem]) -> TasteProfile {
+    private func profile(
+        for watched: [MediaItem]
+    ) -> HybridRecommendationEngine.Profile {
         if let cachedProfile, cachedProfileRevision == library.revision {
             return cachedProfile
         }
-        let built = engine.buildProfile(from: watched)
+        let built = hybridEngine.buildProfile(from: watched)
         cachedProfile = built
         cachedProfileRevision = library.revision
         profileRebuilds += 1
         return built
-    }
-
-    // MARK: - Calibration
-
-    /// The user's learned rating calibration, rebuilt only when the library
-    /// changes.
-    ///
-    /// Fitting costs one profile build per watched item, so this is cheap for a
-    /// realistic library and pointless to repeat per request. `.identity` until
-    /// there are enough matched pairs to learn from — which is the correct
-    /// mapping in the absence of evidence, not a placeholder.
-    func calibration(for watched: [MediaItem]) -> RatingCalibration {
-        if let cachedCalibration, cachedCalibrationRevision == library.revision {
-            return cachedCalibration
-        }
-        let fitted = engine.calibration(for: watched)
-        cachedCalibration = fitted
-        cachedCalibrationRevision = library.revision
-        calibrationFits += 1
-        return fitted
     }
 
     // MARK: - Exclusions
@@ -363,35 +344,61 @@ final class RecommendationViewModel {
     /// Best effort throughout: a title whose fetch fails keeps its stage-1
     /// score rather than dropping out. Losing a candidate because TMDB was slow
     /// would be a worse failure than ranking it on genres alone.
-    private func rerank(_ head: [Scored], using profile: TasteProfile) async -> [Scored] {
+    private func rerank(
+        _ head: [Scored],
+        using profile: HybridRecommendationEngine.Profile
+    ) async -> [Scored] {
         guard let featureSource, !head.isEmpty else { return head }
 
-        var enriched: [Scored] = []
-        enriched.reserveCapacity(head.count)
-
-        for scored in head {
-            guard let parsed = TMDBIdentifier.parse(scored.pooled.externalId),
-                  let fetched = await featureSource.features(
-                      type: parsed.type, tmdbId: parsed.tmdbId
-                  ),
-                  !fetched.keys.isEmpty
-            else {
-                enriched.append(scored)
-                continue
+        var fetched = Array<TMDBMediaService.ExtractedFeatures?>(
+            repeating: nil, count: head.count
+        )
+        var start = 0
+        while start < head.count {
+            let end = min(start + Self.rerankConcurrency, head.count)
+            await withTaskGroup(
+                of: (Int, TMDBMediaService.ExtractedFeatures?).self
+            ) { group in
+                for index in start..<end {
+                    guard let parsed = TMDBIdentifier.parse(head[index].pooled.externalId)
+                    else { continue }
+                    group.addTask {
+                        let result = await featureSource.features(
+                            type: parsed.type, tmdbId: parsed.tmdbId
+                        )
+                        return (index, result)
+                    }
+                }
+                for await (index, result) in group { fetched[index] = result }
             }
+            start = end
+        }
 
+        return head.enumerated().map { index, scored in
+            guard let detail = fetched[index] else { return scored }
+
+            // Vote metadata is useful even when TMDB has no richer categorical
+            // keys. Keep the stage-one keys in that case instead of throwing
+            // away the quality signal with the empty array.
+            let keys = detail.keys.isEmpty ? scored.features.keys : detail.keys
             let features = CandidateFeatures(
                 id: scored.features.id,
                 type: scored.pooled.type,
-                keys: fetched.keys
+                keys: keys
             )
-            enriched.append(
-                Scored(pooled: scored.pooled, features: features,
-                       predicted: engine.predict(features, using: profile))
+            let item = scored.pooled.makeMediaItem()
+            return Scored(
+                pooled: scored.pooled,
+                features: features,
+                predicted: hybridEngine.predict(
+                    item: item,
+                    features: features,
+                    using: profile,
+                    voteAverage: detail.voteAverage,
+                    voteCount: detail.voteCount
+                )
             )
         }
-
-        return enriched
     }
 
     // MARK: - Diversity
@@ -422,13 +429,14 @@ final class RecommendationViewModel {
         to scored: [Scored],
         limit: Int,
         capBasis: Int
-    ) -> [Scored] {
+    ) -> [Selection] {
         guard limit > 0 else { return [] }
 
         let cap = max(1, Int((Double(capBasis) * Self.genreCap).rounded(.up)))
         var counts: [String: Int] = [:]
-        var accepted: [Scored] = []
+        var accepted: [Selection] = []
         var deferred: [Scored] = []
+        var markedExploration = false
 
         for candidate in scored {
             guard accepted.count < limit else { break }
@@ -439,11 +447,20 @@ final class RecommendationViewModel {
                 continue
             }
             for genre in genres { counts[genre, default: 0] += 1 }
-            accepted.append(candidate)
+
+            // Once a dominant genre has forced a better-scoring title aside,
+            // the next accepted alternative is the list's deliberate breadth
+            // pick. Mark exactly one: a page full of "different" labels says
+            // nothing, while one makes the tradeoff legible.
+            let isExploration = !markedExploration && !deferred.isEmpty
+            accepted.append(Selection(scored: candidate, isExploration: isExploration))
+            markedExploration = markedExploration || isExploration
         }
 
         if accepted.count < limit {
-            accepted.append(contentsOf: deferred.prefix(limit - accepted.count))
+            accepted.append(contentsOf: deferred.prefix(limit - accepted.count).map {
+                Selection(scored: $0, isExploration: false)
+            })
         }
         return accepted
     }
@@ -457,5 +474,10 @@ final class RecommendationViewModel {
         let pooled: PooledTitle
         let features: CandidateFeatures
         let predicted: PredictedScore
+    }
+
+    private struct Selection {
+        let scored: Scored
+        let isExploration: Bool
     }
 }

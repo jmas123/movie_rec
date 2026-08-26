@@ -19,6 +19,11 @@
 //  offers no Edit button — see `RankingViewModel.canReorder`. Each sentiment
 //  is its own section, so drags can never cross sentiment boundaries either.
 //
+//  **A title search disables reordering for the same reason.** A filtered list
+//  is a subset, so visible row 2 is not bucket position 2, and a drag would
+//  move the item somewhere the user did not point at. Same rule as the All tab,
+//  arrived at from the other direction.
+//
 
 import SwiftUI
 

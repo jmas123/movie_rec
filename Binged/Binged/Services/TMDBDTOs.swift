@@ -51,6 +51,8 @@ struct TMDBTitleDTO: Codable {
     /// the only opinion that counts. It is decoded solely so the candidate
     /// pool builder can order pages deterministically.
     let popularity: Double?
+    let voteAverage: Double?
+    let voteCount: Int?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -63,6 +65,8 @@ struct TMDBTitleDTO: Codable {
         case posterPath = "poster_path"
         case genreIds = "genre_ids"
         case popularity
+        case voteAverage = "vote_average"
+        case voteCount = "vote_count"
     }
 
     // MARK: Derived
@@ -120,7 +124,9 @@ struct TMDBTitleDTO: Codable {
             type: type,
             overview: overview ?? "",
             posterURL: TMDBImage.posterURL(path: posterPath),
-            genres: vocabulary.canonicalGenres(ids: genreIds ?? [], type: type)
+            genres: vocabulary.canonicalGenres(ids: genreIds ?? [], type: type),
+            tmdbVoteAverage: voteAverage,
+            tmdbVoteCount: voteCount
         )
     }
 }
@@ -164,6 +170,30 @@ struct TMDBDetailDTO: Codable {
     /// TV only.
     let networks: [TMDBNetworkDTO]?
 
+    // MARK: Display-only metadata
+    //
+    // Nothing below feeds the predictor — these are the facts the detail
+    // screen shows and nothing persists. They ride along on the same request
+    // rather than costing one of their own.
+
+    /// The marketing one-liner. Empty string as often as absent, which is why
+    /// `makeTitleDetails` normalises both to `nil`.
+    let tagline: String?
+
+    /// 16:9 still. Distinct from `posterPath` and much wider, so it needs its
+    /// own image size — see `TMDBImage.backdropURL`.
+    let backdropPath: String?
+
+    /// How many votes `voteAverage` is over.
+    let voteCount: Int?
+
+    /// "Released", "Returning Series", "Ended", "Post Production".
+    let status: String?
+
+    /// TV only.
+    let numberOfSeasons: Int?
+    let numberOfEpisodes: Int?
+
     /// TV only. The showrunner(s). Used instead of a per-episode director
     /// credit, since episode directors vary week to week but the creator does
     /// not — a "favourite director" claim built from episode credits would be
@@ -184,17 +214,28 @@ struct TMDBDetailDTO: Codable {
     /// From `append_to_response=keywords`.
     let keywords: TMDBKeywordsDTO?
 
+    /// From `append_to_response=watch/providers`. The key really does contain a
+    /// slash — it is a sub-path, not a name — which is why `CodingKeys` spells
+    /// it out rather than relying on any conversion strategy.
+    let watchProviders: TMDBWatchProvidersDTO?
+
     enum CodingKeys: String, CodingKey {
         case id, title, name, overview, genres, runtime, networks, credits, keywords
+        case tagline, status
         case releaseDate = "release_date"
         case firstAirDate = "first_air_date"
         case posterPath = "poster_path"
+        case backdropPath = "backdrop_path"
         case episodeRunTime = "episode_run_time"
         case originalLanguage = "original_language"
         case voteAverage = "vote_average"
+        case voteCount = "vote_count"
+        case numberOfSeasons = "number_of_seasons"
+        case numberOfEpisodes = "number_of_episodes"
         case belongsToCollection = "belongs_to_collection"
         case createdBy = "created_by"
         case aggregateCredits = "aggregate_credits"
+        case watchProviders = "watch/providers"
     }
 
     func makeMediaItem(type: MediaType, vocabulary: TMDBGenreVocabulary) -> MediaItem? {
@@ -214,8 +255,110 @@ struct TMDBDetailDTO: Codable {
             posterURL: TMDBImage.posterURL(path: posterPath),
             genres: vocabulary.canonicalGenres(names: (genres ?? []).map(\.name)),
             features: features(type: type, vocabulary: vocabulary).keys,
-            tmdbVoteAverage: voteAverage
+            tmdbVoteAverage: voteAverage,
+            tmdbVoteCount: voteCount
         )
+    }
+
+    // MARK: Display mapping
+
+    /// Builds the screen-facing view of this payload.
+    ///
+    /// Separate from `makeMediaItem` because the two have different lifetimes:
+    /// a `MediaItem` is persisted and synced, while this is refetched whenever
+    /// the screen is opened. Sharing one mapping would mean every field added
+    /// for display became a column somebody had to migrate.
+    ///
+    /// - Parameter region: ISO 3166-1 country code for the watch-provider
+    ///   lookup. Availability is per country, so passing the wrong one is worse
+    ///   than passing none: it would confidently list services the user cannot
+    ///   subscribe to.
+    func makeTitleDetails(type: MediaType, region: String) -> TitleDetails {
+        let providers = watchProviders?.results?[region]
+
+        return TitleDetails(
+            tagline: nonEmpty(tagline),
+            runtimeMinutes: representativeRuntime.flatMap { $0 > 0 ? $0 : nil },
+            backdropURL: TMDBImage.backdropURL(path: backdropPath),
+            voteAverage: (voteAverage ?? 0) > 0 ? voteAverage : nil,
+            voteCount: voteCount,
+            status: nonEmpty(status),
+            originalLanguage: nonEmpty(originalLanguage),
+            seasonCount: type == .tvShow ? numberOfSeasons : nil,
+            episodeCount: type == .tvShow ? numberOfEpisodes : nil,
+            releaseDateText: nonEmpty(releaseDate ?? firstAirDate),
+            directors: directorCredits(type: type),
+            cast: castCredits(type: type),
+            streamingProviders: (providers?.includedWithSubscription ?? []).map {
+                TitleDetails.Provider(
+                    id: String($0.providerId),
+                    name: $0.providerName,
+                    logoURL: TMDBImage.logoURL(path: $0.logoPath)
+                )
+            },
+            providerLink: nonEmpty(providers?.link)
+        )
+    }
+
+    /// Names to show above the cast. Reuses the same film-versus-television
+    /// rule as `directorFeatures` — the creator for a series, the director for
+    /// a film — so the screen and the predictor never disagree about who made
+    /// something.
+    private func directorCredits(type: MediaType) -> [TitleDetails.Person] {
+        if type == .tvShow {
+            return (createdBy ?? []).map {
+                TitleDetails.Person(id: String($0.id), name: $0.name, role: "Creator")
+            }
+        }
+        return (activeCredits?.crew ?? [])
+            .filter { $0.holdsJob("Director") }
+            .compactMap { crew in
+                crew.name.map {
+                    TitleDetails.Person(
+                        id: String(crew.id),
+                        name: $0,
+                        role: "Director",
+                        imageURL: TMDBImage.profileURL(path: crew.profilePath)
+                    )
+                }
+            }
+    }
+
+    /// Top-billed cast for display.
+    ///
+    /// A wider cap than `castCap`: three names is the right amount of *signal*
+    /// for the predictor and a thin-looking row on a screen the user opened to
+    /// read about a film. The two numbers answer different questions, so they
+    /// are allowed to differ.
+    private func castCredits(type: MediaType) -> [TitleDetails.Person] {
+        let cast = activeCredits?.cast ?? []
+        let ranked = type == .movie
+            ? cast.sorted { ($0.order ?? .max) < ($1.order ?? .max) }
+            : cast.sorted { ($0.totalEpisodeCount ?? 0) > ($1.totalEpisodeCount ?? 0) }
+
+        return ranked.prefix(Self.displayCastCap).compactMap { member in
+            member.name.map {
+                TitleDetails.Person(
+                    id: String(member.id),
+                    name: $0,
+                    role: member.displayCharacter,
+                    imageURL: TMDBImage.profileURL(path: member.profilePath)
+                )
+            }
+        }
+    }
+
+    /// How many cast members the detail screen shows. Ten fills a horizontal
+    /// strip on the widest phone without asking the user to scroll past
+    /// uncredited extras.
+    static let displayCastCap = 10
+
+    /// TMDB returns `""` about as often as it omits a key, and an empty string
+    /// renders as an empty line rather than as nothing.
+    private func nonEmpty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     // MARK: Feature extraction
@@ -378,9 +521,43 @@ struct TMDBCastDTO: Codable {
     /// Episodes appeared in. Television only, from `aggregate_credits`.
     let totalEpisodeCount: Int?
 
+    /// Who they played. Film only: `aggregate_credits` rolls a performer's
+    /// parts into `roles` instead, since a soap actor can play three.
+    let character: String?
+
+    /// Television only, from `aggregate_credits`.
+    let roles: [TMDBRoleDTO]?
+
+    /// Headshot. Absent for a great many credited people, which is why the
+    /// cast strip draws initials rather than leaving a hole.
+    let profilePath: String?
+
     enum CodingKeys: String, CodingKey {
-        case id, name, order
+        case id, name, order, character, roles
         case totalEpisodeCount = "total_episode_count"
+        case profilePath = "profile_path"
+    }
+
+    /// The character to print, whichever endpoint this came from. Prefers the
+    /// most-seen role for television, since a series lead with 60 episodes and
+    /// a one-scene cameo are both entries in `roles`.
+    var displayCharacter: String? {
+        if let character, !character.isEmpty { return character }
+        let best = (roles ?? [])
+            .filter { !($0.character ?? "").isEmpty }
+            .max { ($0.episodeCount ?? 0) < ($1.episodeCount ?? 0) }
+        return best?.character
+    }
+}
+
+/// One part a performer played across a run. Television only.
+struct TMDBRoleDTO: Codable {
+    let character: String?
+    let episodeCount: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case character
+        case episodeCount = "episode_count"
     }
 }
 
@@ -396,9 +573,13 @@ struct TMDBCrewDTO: Codable {
 
     let totalEpisodeCount: Int?
 
+    /// Headshot, same caveat as the cast's.
+    let profilePath: String?
+
     enum CodingKeys: String, CodingKey {
         case id, name, job, jobs
         case totalEpisodeCount = "total_episode_count"
+        case profilePath = "profile_path"
     }
 
     /// Checks both shapes, so a caller does not have to know which endpoint
@@ -451,6 +632,67 @@ struct TMDBFindDTO: Codable {
     }
 }
 
+// MARK: - Watch providers
+
+/// `append_to_response=watch/providers`.
+///
+/// TMDB licenses this from JustWatch, which imposes two rules the shape makes
+/// unavoidable: availability is **per region**, and the data may not be shown
+/// without a link back to the JustWatch page TMDB supplies as `link`. Both are
+/// why `TitleDetails` carries `providerLink` rather than only a list of names.
+struct TMDBWatchProvidersDTO: Codable {
+
+    /// Keyed by ISO 3166-1 country code. A title carries entries only for
+    /// regions it is available in, so a miss is "not streaming here" rather
+    /// than an error.
+    let results: [String: TMDBRegionProvidersDTO]?
+}
+
+struct TMDBRegionProvidersDTO: Codable {
+
+    /// The JustWatch page for this title and region.
+    let link: String?
+
+    /// Included with a subscription. Kept apart from `rent`/`buy` on purpose —
+    /// see `TitleDetails.streamingProviders`.
+    let flatrate: [TMDBProviderDTO]?
+
+    /// Free with ads, and free outright. Folded in with `flatrate` for display
+    /// because both answer "yes, tonight, at no extra cost".
+    let ads: [TMDBProviderDTO]?
+    let free: [TMDBProviderDTO]?
+
+    /// Decoded but deliberately not displayed.
+    let rent: [TMDBProviderDTO]?
+    let buy: [TMDBProviderDTO]?
+
+    /// Subscription-equivalent options, deduplicated by provider id and in
+    /// TMDB's own display order.
+    var includedWithSubscription: [TMDBProviderDTO] {
+        var seen: Set<Int> = []
+        return ((flatrate ?? []) + (free ?? []) + (ads ?? []))
+            .filter { seen.insert($0.providerId).inserted }
+            .sorted { ($0.displayPriority ?? .max) < ($1.displayPriority ?? .max) }
+    }
+}
+
+struct TMDBProviderDTO: Codable {
+    let providerId: Int
+    let providerName: String
+    let logoPath: String?
+
+    /// TMDB's own ordering hint — roughly "how likely is this the one you
+    /// meant". Used so Netflix outranks a regional reseller.
+    let displayPriority: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case providerId = "provider_id"
+        case providerName = "provider_name"
+        case logoPath = "logo_path"
+        case displayPriority = "display_priority"
+    }
+}
+
 // MARK: - Identifiers
 
 /// TMDB ids are only unique **within** a media type: movie 1396 and TV 1396
@@ -495,8 +737,51 @@ enum TMDBImage {
     /// `original` would be several megabytes per title for no visible gain.
     static let posterSize = "w500"
 
+    /// Backdrops are shown full-bleed across the screen, so they need a wider
+    /// source than a poster tile; profile shots and provider logos are drawn
+    /// small and would waste bandwidth at any larger size.
+    static let backdropSize = "w780"
+    static let profileSize = "w185"
+    static let logoSize = "w92"
+
     static func posterURL(path: String?) -> String? {
+        url(path: path, size: posterSize)
+    }
+
+    static func backdropURL(path: String?) -> String? {
+        url(path: path, size: backdropSize)
+    }
+
+    static func profileURL(path: String?) -> String? {
+        url(path: path, size: profileSize)
+    }
+
+    static func logoURL(path: String?) -> String? {
+        url(path: path, size: logoSize)
+    }
+
+    private static func url(path: String?, size: String) -> String? {
         guard let path, !path.isEmpty else { return nil }
-        return "https://image.tmdb.org/t/p/\(posterSize)\(path)"
+        return "https://image.tmdb.org/t/p/\(size)\(path)"
+    }
+
+    /// The inverse: recovers TMDB's `/abc.jpg` from a URL this type built.
+    ///
+    /// Needed because `MediaItem` stores the rendered URL while `ranked_items`
+    /// stores a `poster_path`. Round-tripping the *path* rather than the URL
+    /// keeps the column honest and survives a change of image host or size —
+    /// a stored `w500` URL would pin every synced row to today's choice.
+    ///
+    /// Returns `nil` for anything it did not build, so a hand-set or
+    /// already-relative value is passed through untouched by the caller rather
+    /// than mangled.
+    static func posterPath(fromURL url: String?) -> String? {
+        guard let url, !url.isEmpty else { return nil }
+        guard url.hasPrefix("https://image.tmdb.org/t/p/") else {
+            // Already a path, or something we do not recognise.
+            return url.hasPrefix("/") ? url : nil
+        }
+        let file = (url as NSString).lastPathComponent
+        return file.isEmpty ? nil : "/" + file
     }
 }

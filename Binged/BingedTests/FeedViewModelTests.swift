@@ -52,6 +52,7 @@ private final class RecordingFeedService: FeedService, @unchecked Sendable {
         throw SocialError.underlying("not implemented")
     }
 
+    func editComment(_ commentID: UUID, body: String) async throws {}
     func deleteComment(_ commentID: UUID) async throws {}
     func report(_ target: ReportTarget, reason: ReportReason, note: String?) async throws {}
 }
@@ -285,6 +286,62 @@ struct FeedViewModelTests {
         )
         await quiet.refresh()
         #expect(quiet.phase == .quiet)
+    }
+
+    @Test("A quiet feed carries who you follow, so the screen can show them")
+    func quietFeedKeepsFollowees() async {
+        // The screen draws the people, not a count: an unexplained empty feed
+        // reads as a follow that silently failed.
+        let viewer = UUID()
+        let friends = [person("alex"), person("bo")]
+        let social = MockSocialService(viewer: viewer, people: friends)
+        for friend in friends { _ = try? await social.follow(friend.id) }
+
+        let viewModel = FeedViewModel(
+            service: RecordingFeedService(), social: social,
+            isSignedIn: { true }, viewerID: { viewer }
+        )
+        await viewModel.refresh()
+
+        #expect(viewModel.phase == .quiet)
+        #expect(viewModel.followees.map(\.handle) == ["alex", "bo"])
+    }
+
+    @Test("Following nobody carries nobody")
+    func followingNobodyCarriesNoFollowees() async {
+        let viewer = UUID()
+        let viewModel = FeedViewModel(
+            service: RecordingFeedService(), social: MockSocialService(viewer: viewer),
+            isSignedIn: { true }, viewerID: { viewer }
+        )
+        await viewModel.refresh()
+
+        #expect(viewModel.phase == .followingNobody)
+        #expect(viewModel.followees.isEmpty)
+    }
+
+    @Test("A feed with posts does not hold on to a previous empty load's followees")
+    func postsClearStaleFollowees() async {
+        // The list is only ever drawn by the empty screen, so leaving it
+        // populated behind a full feed is a stale read waiting to be shown the
+        // next time the feed empties out.
+        let viewer = UUID()
+        let friend = person("alex")
+        let social = MockSocialService(viewer: viewer, people: [friend])
+        _ = try? await social.follow(friend.id)
+
+        let feed = RecordingFeedService()
+        let viewModel = FeedViewModel(
+            service: feed, social: social, isSignedIn: { true }, viewerID: { viewer }
+        )
+        await viewModel.refresh()
+        #expect(!viewModel.followees.isEmpty)
+
+        feed.pages = [[post(0, at: Date())]]
+        await viewModel.refresh()
+
+        #expect(viewModel.phase == .posts)
+        #expect(viewModel.followees.isEmpty)
     }
 
     @Test("Paging never duplicates or skips")

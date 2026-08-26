@@ -54,13 +54,34 @@ only ever been run on a warm cache or against stubs.
 push. `Secrets.xcconfig` is gitignored; `Secrets.xcconfig.example` is not and
 must stay placeholder-only.
 
-### 7. Supabase migrations and the edge function are not deployed
+### 7. ~~Supabase migrations~~ and the edge function are not deployed
 
-Written, never run:
+**Migrations: resolved 2026-08-25.** `supabase migration list` against the linked
+project (`qyboceoakxznkrbeygro`) reports **all ten local migrations applied
+remotely**, `20260825000000_comment_editing.sql` included after a push that
+evening. There is no schema drift.
 
-- `supabase/migrations/20260822000000_moderation.sql` — reports, rate-limit
-  triggers, `delete_account()`
-- `supabase/functions/tmdb-proxy/` — the TMDB credential proxy
+**This section was wrong for a long time and that is the lesson worth keeping.**
+It listed `20260822000000_moderation.sql` as "written, never run" — it had been
+applied since 2026-08-22. `GAP-AUDIT.md` §1 separately claimed only
+`20260821210000_social.sql` was live and that `@binge`/`@binged` were therefore
+claimable by anyone; both reservation migrations were in fact already applied.
+Two documents asserting remote state that neither had checked, repeated forward
+for days, and read by at least one session as a live security exposure.
+
+**How to apply:** remote state is a one-command question —
+`supabase migration list`, which prints LOCAL against REMOTE. It needs the
+database password, so it cannot be answered from inside the repo or by an agent
+without it. Never restate what is deployed from a document; run the command, and
+if you cannot, say that the state is unverified rather than repeating the last
+thing someone wrote.
+
+Still not deployed:
+
+- `supabase/functions/tmdb-proxy/` — the TMDB credential proxy. Phase 35: deploy
+  it, `supabase secrets set TMDB_READ_TOKEN=…`, then remove the token from the
+  release build and **rotate it**. Until the function is live every build falls
+  through to the direct path, so nothing has changed on anyone's device.
 
 To apply: `supabase db push` (or `supabase start` then `db reset` locally), and
 `supabase functions deploy tmdb-proxy` with `TMDB_READ_TOKEN` set as a function
@@ -73,7 +94,7 @@ it cannot be tested from here.
 Phase 28 step 2 asks for EULA acceptance at signup. The links are in Settings
 (Apple's standard EULA and a privacy-policy URL) but the sign-up form does not
 require a tick. Add the checkbox before submitting to review, and put a real
-privacy policy at the URL — `https://watchrank.app/privacy` currently points at
+privacy policy at the URL — `https://binged.app/privacy` currently points at
 nothing.
 
 ### 9. App Store privacy labels

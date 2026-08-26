@@ -118,11 +118,37 @@ final class MockFeedService: FeedService, @unchecked Sendable {
         let comment = PostComment(
             id: UUID(), postID: postID, authorID: viewerID,
             body: body.trimmingCharacters(in: .whitespacesAndNewlines),
-            createdAt: .now, deletedAt: nil,
+            createdAt: .now, deletedAt: nil, editedAt: nil,
             authorHandle: "viewer", authorDisplayName: nil, authorAvatarURL: nil
         )
         lock.lock(); comments[postID, default: []].append(comment); lock.unlock()
         return comment
+    }
+
+    func editComment(_ commentID: UUID, body: String) async throws {
+        if let problem = PostComment.validate(body) {
+            throw SocialError.underlying(problem.message)
+        }
+        lock.lock()
+        defer { lock.unlock() }
+        for (postID, list) in comments {
+            guard let index = list.firstIndex(where: { $0.id == commentID }) else { continue }
+            let old = list[index]
+            // The trigger's rule, enforced here too so a test can prove the app
+            // never offers the control rather than relying on the server to say
+            // no: only the author may rewrite a body.
+            guard old.authorID == viewerID else {
+                throw SocialError.underlying("Only the author may edit a comment.")
+            }
+            guard !old.isDeleted else {
+                throw SocialError.underlying("That comment was deleted.")
+            }
+            comments[postID]?[index] = old.edited(
+                body: body.trimmingCharacters(in: .whitespacesAndNewlines),
+                at: .now
+            )
+            return
+        }
     }
 
     func deleteComment(_ commentID: UUID) async throws {
@@ -133,7 +159,7 @@ final class MockFeedService: FeedService, @unchecked Sendable {
             let old = list[index]
             comments[postID]?[index] = PostComment(
                 id: old.id, postID: old.postID, authorID: old.authorID, body: old.body,
-                createdAt: old.createdAt, deletedAt: .now,
+                createdAt: old.createdAt, deletedAt: .now, editedAt: old.editedAt,
                 authorHandle: old.authorHandle, authorDisplayName: old.authorDisplayName,
                 authorAvatarURL: old.authorAvatarURL
             )

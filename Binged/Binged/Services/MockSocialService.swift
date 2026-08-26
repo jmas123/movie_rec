@@ -60,6 +60,10 @@ final class MockSocialService: SocialService, @unchecked Sendable {
         defer { lock.unlock() }
 
         return people.values
+            // The server does the same, for the same reason: the viewer's own
+            // row is never a search result, and its Follow button could only
+            // ever fail the self-follow check.
+            .filter { $0.id != viewerID }
             .filter { !isBlockedLocked(viewerID, $0.id) }
             .filter {
                 $0.handle.contains(needle)
@@ -114,6 +118,13 @@ final class MockSocialService: SocialService, @unchecked Sendable {
 
         guard !isBlockedLocked(viewerID, userID) else { throw SocialError.blocked }
         guard let target = people[userID] else { throw SocialError.notFound }
+
+        // Idempotent, matching the server: `follow` is `ON CONFLICT DO
+        // NOTHING`, so an edge that already exists is returned untouched.
+        // Recomputing it here would let an *accepted* request fall back to
+        // `pending` on a second tap — a mock that quietly un-accepts a follow
+        // the real service leaves alone.
+        if let existing = edges[Self.key(viewerID, userID)] { return existing }
 
         let state: FollowState = target.isPrivate ? .pending : .active
         edges[Self.key(viewerID, userID)] = state

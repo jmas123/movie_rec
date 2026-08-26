@@ -76,6 +76,28 @@ struct BingedApp: App {
     /// slow one. This is the fast one.
     static let mockSocialArgument = "-uiTestingMockSocial"
 
+    /// Whether this process is hosting a test bundle.
+    ///
+    /// **The unit suite runs inside the app**, so `BingedApp` boots for real
+    /// during `xcodebuild test`: `sessionChanged()` reads the keychain, signs in
+    /// as whoever last used that simulator, restores their library over the
+    /// network, and then calls `sync.drain()` — which upserts and *deletes*
+    /// buckets in the live project. A test run could publish or destroy real
+    /// rows in somebody's account.
+    ///
+    /// The two launch arguments above do not catch this. Nothing passes them to
+    /// a unit-test run; they exist for the UI suite, which is a different
+    /// process invocation. That gap is why this is an environment check rather
+    /// than a third argument.
+    ///
+    /// `XCTestConfigurationFilePath` is set by the test runner and by nothing
+    /// else. It covers swift-testing as well as XCTest, because swift-testing is
+    /// hosted by the same harness — `CompositionRootTests` asserts exactly that,
+    /// since a silently-false value here would silently restore live calls.
+    static var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
     init() {
         let isUITesting = ProcessInfo.processInfo.arguments.contains(Self.inMemoryStoreArgument)
 
@@ -300,7 +322,12 @@ struct BingedApp: App {
                 rankings: fixture.rankings, client: nil, configuration: nil
             )
         }
-        guard !isUITesting, let configuration = SupabaseConfiguration.fromBundle() else {
+        // `isRunningTests` alongside `isUITesting`: with no stack there is no
+        // session, so `restore()` and `drain()` never run and the pending-request
+        // badge never polls. That is the whole of the fix — the network calls all
+        // hang off a signed-in session.
+        guard !isUITesting, !isRunningTests,
+              let configuration = SupabaseConfiguration.fromBundle() else {
             return nil
         }
         let client = SupabaseClient(configuration: configuration)
@@ -325,6 +352,28 @@ struct BingedApp: App {
     /// data — unanswered rows go up private. The answer decides `is_published`
     /// and nothing else.
     @MainActor
+    /// Retries **both** halves of sync, for the triggers that are not a sign-in.
+    ///
+    /// Foreground and connectivity-return used to drain only. That was a real
+    /// hole: `LibraryRestorer` deliberately does *not* mark an account restored
+    /// when the fetch throws, precisely so a later trigger can try again — and
+    /// then nothing tried again. A restore that failed because the user signed
+    /// in with no signal stayed failed until they signed out and back in, and
+    /// the app looked like it had simply lost their library.
+    ///
+    /// Restore first, for the same reason `sessionChanged` does: draining a
+    /// device that has not yet seen the account pushes it over the top of one it
+    /// knows nothing about.
+    ///
+    /// Cheap to call repeatedly. A successful restore is remembered per account
+    /// and returns immediately; a drain with an empty outbox does nothing.
+    private func catchUp() async {
+        if session.isSignedIn {
+            await restorer?.restore()
+        }
+        await sync?.drain()
+    }
+
     private func sessionChanged() async {
         guard let sync else { return }
         sync.refreshConsent()
@@ -358,20 +407,31 @@ struct BingedApp: App {
 
     // MARK: - Catalog
 
-    /// Picks the live catalog when the build carries a TMDB token, and the
-    /// bundled one when it does not.
+    /// Picks the live catalog when the build can reach one, and the bundled one
+    /// when it cannot.
+    ///
+    /// Three-way, in preference order (`TMDBConfiguration.resolve`):
+    ///
+    /// 1. **The proxy**, when Supabase is configured. The TMDB credential stays
+    ///    server-side and the app carries only the anon key, which is public by
+    ///    design. This is the only configuration acceptable for distribution —
+    ///    roadmap Phase 35.
+    /// 2. **Direct to TMDB**, when the build has a bundled token and no
+    ///    Supabase. Supported for local development; ships the credential, so
+    ///    not for release.
+    /// 3. **The bundled catalog**, when neither is present.
     ///
     /// Two cases deliberately stay on the mock:
     ///
-    /// - **No token.** A checkout without `Config/Secrets.xcconfig` is a
-    ///   supported state, so this degrades to the bundled catalog instead of
+    /// - **Nothing configured.** A checkout without `Config/Secrets.xcconfig` is
+    ///   a supported state, so this degrades to the bundled catalog instead of
     ///   launching into an app where every screen is an error.
     /// - **UI tests.** `RankingFlowUITests` drives search with a title it knows
-    ///   is in `MockMedia.json`. Pointed at TMDB it would depend on the network,
-    ///   on TMDB's ranking of that query, and on the rate limiter — a test that
-    ///   fails for three reasons unrelated to the code it covers.
+    ///   is in `MockMedia.json`. Pointed at a live catalog it would depend on
+    ///   the network, on TMDB's ranking of that query, and on the rate limiter —
+    ///   a test that fails for three reasons unrelated to the code it covers.
     static func makeService(isUITesting: Bool) -> MediaService {
-        guard !isUITesting, let configuration = TMDBConfiguration.fromBundle() else {
+        guard !isUITesting, let configuration = TMDBConfiguration.resolve() else {
             return MockMediaService()
         }
         return TMDBMediaService(configuration: configuration)
@@ -394,9 +454,18 @@ struct BingedApp: App {
                     rankingFeedService: social?.rankings
                 )
                     .environment(library)
+                    // The catalog, for screens deep enough that handing it down
+                    // by parameter would mean routing it through screens that
+                    // never use it — see `MediaServiceKey`.
+                    .environment(\.mediaService, service)
+                    // A protocol too, so it travels by key rather than through
+                    // the `@Observable` overload. Nil on a build with no
+                    // server, which simply has no friends section.
+                    .environment(\.rankingFeedService, social?.rankings)
                     .environment(recommender)
                     .environment(session)
                     .environment(sync)
+                    .environment(restorer)
                     .task { await runStartupMaintenance() }
                     .task { await session.restore() }
                     // Subscribed at launch because MetricKit delivers the
@@ -411,7 +480,7 @@ struct BingedApp: App {
                     // was away, including a failure it never got to retry.
                     .onChange(of: scenePhase) { _, phase in
                         guard phase == .active else { return }
-                        Task { await sync?.drain() }
+                        Task { await catchUp() }
                     }
                     // Trigger 3 — the library changed. One central trigger rather
                     // than a call after each of the five mutation sites: "remember
@@ -423,7 +492,7 @@ struct BingedApp: App {
                     }
                     // Trigger 4 — the network came back.
                     .onAppear {
-                        connectivity.start { Task { @MainActor in await sync?.drain() } }
+                        connectivity.start { Task { @MainActor in await catchUp() } }
                     }
                     .sheet(item: $consentPrompt) { _ in
                         PublishConsentView(

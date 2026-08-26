@@ -27,7 +27,8 @@ struct LibraryRestorerTests {
         type: MediaType = .movie,
         sentiment: Sentiment? = .liked,
         rank: Int? = 0,
-        updatedAt: Date = epoch
+        updatedAt: Date = epoch,
+        posterPath: String? = "/poster.jpg"
     ) -> RemoteRankedItem {
         .init(
             externalId: externalId,
@@ -36,7 +37,8 @@ struct LibraryRestorerTests {
             title: title,
             year: 2020,
             rankInBucket: rank,
-            updatedAt: updatedAt
+            updatedAt: updatedAt,
+            posterPath: posterPath
         )
     }
 
@@ -80,6 +82,38 @@ struct LibraryRestorerTests {
         // Seeding `lastRankedAt` with `.now` would let a restored row win a
         // later conflict merely by having arrived recently.
         #expect(item.lastRankedAt == Self.epoch)
+    }
+
+    @Test("A restored title arrives with its poster, not a placeholder")
+    func restoredItemKeepsItsArtwork() async throws {
+        // Shipped without this: `RemoteRankedItem` carried no poster and the
+        // publish payload never sent one, so a restored library rendered as a
+        // wall of gradient letters. Both halves had to be fixed — reading a
+        // column nothing writes restores nothing.
+        let library = try makeLibrary()
+        let service = MockLibraryRestoreService()
+        service.set([remote("tmdb:movie:1", posterPath: "/abc.jpg")], for: Self.userID)
+
+        let restorer = makeRestorer(library: library, service: service)
+        await restorer.restore()
+
+        let item = try #require(library.allItems.first)
+        // The URL is rebuilt locally from the stored path, so the image size is
+        // this build's choice rather than the publishing device's.
+        #expect(item.posterURL == "https://image.tmdb.org/t/p/w500/abc.jpg")
+    }
+
+    @Test("A title with no artwork restores without inventing a URL")
+    func restoredItemWithoutArtworkStaysNil() async throws {
+        let library = try makeLibrary()
+        let service = MockLibraryRestoreService()
+        service.set([remote("tmdb:movie:1", posterPath: nil)], for: Self.userID)
+
+        let restorer = makeRestorer(library: library, service: service)
+        await restorer.restore()
+
+        let item = try #require(library.allItems.first)
+        #expect(item.posterURL == nil)
     }
 
     @Test("Restoring twice for the same account is a no-op")
@@ -150,6 +184,51 @@ struct LibraryRestorerTests {
         let afterRecovery = await restorer.restore()
         #expect(afterRecovery == 1)
         #expect(restorer.lastError == nil)
+    }
+
+    @Test("A failed restore can be retried without signing out")
+    func failedRestoreIsRetryableInPlace() async throws {
+        // The defect this covers shipped: `sessionChanged` restored, but
+        // foreground and connectivity-return drained only. A restore that failed
+        // because the user signed in with no signal stayed failed until they
+        // signed out and back in, and the app looked like it had lost their
+        // library. `catchUp()` in `BingedApp` now calls this on both triggers.
+        let library = try makeLibrary()
+        let service = MockLibraryRestoreService()
+        service.setFailure(Boom.offline)
+
+        let restorer = makeRestorer(library: library, service: service)
+        let failed = await restorer.restore()
+        #expect(failed == 0)
+        #expect(restorer.lastError != nil)
+
+        // Same restorer, same account, no sign-out — exactly what a foreground
+        // retry looks like.
+        service.setFailure(nil)
+        service.set([remote("tmdb:movie:1")], for: Self.userID)
+
+        let retried = await restorer.restore()
+        #expect(retried == 1)
+        #expect(restorer.lastError == nil)
+        #expect(library.allItems.count == 1)
+    }
+
+    @Test("A successful restore is not repeated by a later trigger")
+    func repeatTriggersAreCheap() async throws {
+        // The other half: foreground fires often, and re-fetching a library on
+        // every activation would be rude to the server and to the battery.
+        let library = try makeLibrary()
+        let service = MockLibraryRestoreService()
+        service.set([remote("tmdb:movie:1")], for: Self.userID)
+
+        let restorer = makeRestorer(library: library, service: service)
+        #expect(await restorer.restore() == 1)
+
+        let second = await restorer.restore()
+        let third = await restorer.restore()
+        #expect(second == 0)
+        #expect(third == 0)
+        #expect(library.allItems.count == 1)
     }
 
     // MARK: - Merging into a populated device

@@ -346,10 +346,39 @@ struct RecommendationEngine {
         leaveOneOutPairs(for: watched.compactMap(RankedSnapshot.init))
     }
 
+    /// The same independent folds, restricted only at the **held-out** side.
+    ///
+    /// The training profile still sees the user's complete movie-and-TV
+    /// library, matching production's pooled feature effects. Filtering the
+    /// library before building folds would silently turn this into a different
+    /// model. The restriction exists so display calibration can learn a movie
+    /// scale and a television scale separately, just as prediction already
+    /// learns separate type baselines.
+    func leaveOneOutPairs(
+        for watched: [MediaItem],
+        holdingOut type: MediaType
+    ) -> [(raw: Double, actual: Double)] {
+        leaveOneOutPairs(
+            for: watched.compactMap(RankedSnapshot.init),
+            holdingOut: type
+        )
+    }
+
     func leaveOneOutPairs(for snapshots: [RankedSnapshot]) -> [(raw: Double, actual: Double)] {
+        leaveOneOutPairs(for: snapshots, holdingOut: nil)
+    }
+
+    private func leaveOneOutPairs(
+        for snapshots: [RankedSnapshot],
+        holdingOut type: MediaType?
+    ) -> [(raw: Double, actual: Double)] {
         guard snapshots.count >= 2 else { return [] }
 
-        return snapshots.map { held in
+        let heldItems = type.map { wanted in
+            snapshots.filter { $0.type == wanted }
+        } ?? snapshots
+
+        return heldItems.map { held in
             // Recompute the remaining library rather than deleting one row from
             // it. The score is a *quantile over its bucket*, not an independent
             // observation, so removing a title changes every other title's
@@ -472,6 +501,19 @@ struct RecommendationEngine {
     /// expectation.
     func calibration(for watched: [MediaItem]) -> RatingCalibration {
         RatingCalibration.fit(pairs: leaveOneOutPairs(for: watched), tuning: tuning)
+    }
+
+    /// Fits the displayed-number scale for one media type.
+    ///
+    /// Movie and TV baselines are already independent. Sharing one calibration
+    /// slope after that lets a movie-heavy library dictate how television
+    /// predictions are stretched (and vice versa), which is the same
+    /// cross-type coupling the separate baselines were designed to avoid.
+    func calibration(for watched: [MediaItem], type: MediaType) -> RatingCalibration {
+        RatingCalibration.fit(
+            pairs: leaveOneOutPairs(for: watched, holdingOut: type),
+            tuning: tuning
+        )
     }
 
     // MARK: - Helpers

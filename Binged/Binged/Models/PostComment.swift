@@ -25,6 +25,14 @@ struct PostComment: Codable, Identifiable, Equatable, Sendable {
     /// and counts that no longer match.
     let deletedAt: Date?
 
+    /// When the author last changed the body; nil means never.
+    ///
+    /// Recorded so an edit is visible. A comment somebody has already read,
+    /// replied to or reported must not be able to become a different comment
+    /// with nothing to show for it — a report names an id, and a moderator
+    /// looking at that id needs to know the text moved after it was filed.
+    let editedAt: Date?
+
     let authorHandle: String
     let authorDisplayName: String?
     let authorAvatarURL: String?
@@ -36,12 +44,35 @@ struct PostComment: Codable, Identifiable, Equatable, Sendable {
         case body
         case createdAt = "created_at"
         case deletedAt = "deleted_at"
+        case editedAt = "edited_at"
         case authorHandle = "author_handle"
         case authorDisplayName = "author_display_name"
         case authorAvatarURL = "author_avatar_url"
     }
 
     var isDeleted: Bool { deletedAt != nil }
+
+    /// Whether to show the "edited" marker. A deleted comment is not marked
+    /// edited as well — its body is gone either way, and two disclaimers on one
+    /// empty row reads as noise.
+    var isEdited: Bool { editedAt != nil && !isDeleted }
+
+    /// The local copy after a successful edit, so a thread can update in place
+    /// rather than refetching the whole page to change one string.
+    func edited(body newBody: String, at date: Date) -> PostComment {
+        PostComment(
+            id: id,
+            postID: postID,
+            authorID: authorID,
+            body: newBody,
+            createdAt: createdAt,
+            deletedAt: deletedAt,
+            editedAt: date,
+            authorHandle: authorHandle,
+            authorDisplayName: authorDisplayName,
+            authorAvatarURL: authorAvatarURL
+        )
+    }
 
     var authorName: String {
         let trimmed = authorDisplayName?.trimmingCharacters(in: .whitespaces) ?? ""

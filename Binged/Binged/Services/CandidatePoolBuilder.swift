@@ -40,6 +40,8 @@ struct PooledTitle: Codable, Sendable, Hashable {
     let overview: String
     let posterURL: String?
     let genres: [String]
+    let tmdbVoteAverage: Double?
+    let tmdbVoteCount: Int?
 
     init?(_ item: MediaItem) {
         // Identity is the whole basis of deduplication, so a title without one
@@ -54,6 +56,8 @@ struct PooledTitle: Codable, Sendable, Hashable {
         self.overview = item.overview
         self.posterURL = item.posterURL
         self.genres = item.genres
+        self.tmdbVoteAverage = item.tmdbVoteAverage
+        self.tmdbVoteCount = item.tmdbVoteCount
     }
 
     /// A detached `MediaItem` for the engine and the UI. Not inserted into any
@@ -66,7 +70,9 @@ struct PooledTitle: Codable, Sendable, Hashable {
             type: type,
             overview: overview,
             posterURL: posterURL,
-            genres: genres
+            genres: genres,
+            tmdbVoteAverage: tmdbVoteAverage,
+            tmdbVoteCount: tmdbVoteCount
         )
     }
 }
@@ -235,9 +241,13 @@ actor CandidatePoolBuilder {
                 let components = mood.queryComponents(for: type, vocabulary: vocabulary)
                 var ordered: [String] = []
                 var seen: Set<String> = []
-                var eligible = 0
 
                 for component in components {
+                    // Each component earns its own quota. Sharing one counter
+                    // let a broad genre component fill the mood before a later
+                    // keyword component was queried at all — e.g. Adventure
+                    // could silently erase "quest" from Epic.
+                    var eligible = 0
                     var page = 1
                     var exhausted = false
 

@@ -72,6 +72,18 @@ struct PublishedItem: Codable, Equatable, Sendable {
     let score: Double
     let rankInBucket: Int
     let bucketSize: Int
+    /// TMDB's `/abc.jpg`, not the rendered URL — see `TMDBImage.posterPath`.
+    /// Optional because a title can be ranked before its artwork is known.
+    let posterPath: String?
+
+    /// The owner's own words about the title, or `nil`.
+    ///
+    /// Published for the same reason the score is: it is part of the ranking a
+    /// follower came to read, and — just as importantly — part of what a second
+    /// device must get back. Until this field existed the restore path returned
+    /// every title and none of the writing, so reinstalling silently discarded
+    /// it. Visibility is still `is_published`'s job, not this field's.
+    let review: String?
 
     enum CodingKeys: String, CodingKey {
         case externalId = "external_id"
@@ -82,6 +94,8 @@ struct PublishedItem: Codable, Equatable, Sendable {
         case score
         case rankInBucket = "rank_in_bucket"
         case bucketSize = "bucket_size"
+        case posterPath = "poster_path"
+        case review
     }
 
     /// `nil` for an item the server cannot identify.
@@ -106,6 +120,8 @@ struct PublishedItem: Codable, Equatable, Sendable {
         self.score = score
         self.rankInBucket = rank
         self.bucketSize = bucketSize
+        self.posterPath = TMDBImage.posterPath(fromURL: item.posterURL)
+        self.review = item.review
     }
 }
 

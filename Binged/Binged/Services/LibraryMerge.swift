@@ -42,7 +42,40 @@ struct RemoteRankedItem: Equatable, Sendable {
     let rankInBucket: Int?
     let updatedAt: Date
 
+    /// TMDB's `/abc.jpg`. Carried so a restored title arrives with its artwork
+    /// rather than a gradient placeholder — the first thing a user notices when
+    /// a library lands on a new device, and the bug that shipped without it.
+    let posterPath: String?
+
+    /// The owner's own review, restored alongside the ranking.
+    let review: String?
+
     /// Deliberately absent: `score`. See this file's header.
+
+    /// Spelled out rather than left to the memberwise default so `review` can
+    /// be omitted: every existing caller predates it, and a merge test has no
+    /// business naming a field it is not exercising.
+    init(
+        externalId: String,
+        mediaType: MediaType,
+        sentiment: Sentiment?,
+        title: String,
+        year: Int,
+        rankInBucket: Int?,
+        updatedAt: Date,
+        posterPath: String?,
+        review: String? = nil
+    ) {
+        self.externalId = externalId
+        self.mediaType = mediaType
+        self.sentiment = sentiment
+        self.title = title
+        self.year = year
+        self.rankInBucket = rankInBucket
+        self.updatedAt = updatedAt
+        self.posterPath = posterPath
+        self.review = review
+    }
 }
 
 // MARK: - LibraryMerge

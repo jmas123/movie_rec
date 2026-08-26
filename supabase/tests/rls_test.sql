@@ -20,7 +20,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path to extensions, public, pg_temp;
 
-select plan(33);
+select plan(42);
 
 -- MARK: - Role switching ------------------------------------------------------
 --
@@ -387,7 +387,6 @@ select is(
   0,
   'a public account you do not follow is readable but not in your feed');
 
-select * from finish();
 -- MARK: - 28–31. Stored is not the same as visible -----------------------------
 --
 -- Part IV (`docs/PART-IV-SYNC.md`). A signed-in user's whole library reaches the
@@ -469,5 +468,196 @@ select is(
   true,
   'a new bucket adopts the standing answer');
 
+
+-- MARK: - 34–36. The follow-request inbox -------------------------------------
+--
+-- The whole chain from "A taps Follow" to "B sees a request", which was the one
+-- link in the private-account feature nothing asserted. Every part of it was
+-- covered in isolation — the trigger writes `pending` (17), the follower cannot
+-- self-approve (18), `follows_select` lets the followee read the row — but the
+-- function the inbox screen actually calls was never exercised, so a join that
+-- dropped the requester (via `profiles_select`, say, or a block) would have
+-- looked exactly like "nobody has asked yet".
+--
+-- 36 is the other half, and the one that gets reported as a bug: on a **public**
+-- account `app.force_follow_state` writes `active`, so no request is ever
+-- created and this inbox is empty permanently rather than temporarily.
+
+select tests_as_owner();
+delete from public.follows
+ where follower_id = (select id from ids where name = 'alice')
+   and followee_id = (select id from ids where name = 'carol');
+
+select tests_login((select id from ids where name = 'alice'));
+insert into public.follows (follower_id, followee_id)
+values ((select id from ids where name = 'alice'),
+        (select id from ids where name = 'carol'));
+
+select tests_as_owner();
+select tests_login((select id from ids where name = 'carol'));
+
+select is(
+  (select count(*)::int from public.pending_requests()),
+  1,
+  'a private account sees the request waiting on it');
+
+select is(
+  (select handle from public.pending_requests()),
+  'alice',
+  'and sees who is asking, not a bare edge');
+
+-- Public account: carol follows bob, who is not private.
+select tests_as_owner();
+select tests_login((select id from ids where name = 'carol'));
+insert into public.follows (follower_id, followee_id)
+values ((select id from ids where name = 'carol'),
+        (select id from ids where name = 'bob'))
+on conflict do nothing;
+
+select tests_as_owner();
+select tests_login((select id from ids where name = 'bob'));
+
+select is(
+  (select count(*)::int from public.pending_requests()),
+  0,
+  'a public account never accrues requests — the follow is already active');
+
+
+-- MARK: - 37–38. Following twice ----------------------------------------------
+--
+-- The client's `follow` is an upsert, and **which** upsert is load-bearing.
+--
+-- `ON CONFLICT DO UPDATE` — PostgREST's `resolution=merge-duplicates` — takes
+-- the UPDATE path on the second follow, where `follows_update` applies:
+-- `using (followee_id = auth.uid())`. The follower is not the followee, so
+-- Postgres raises 42501 and the app reported "No such account." for an account
+-- plainly on screen. That policy is right and must not be loosened: it is what
+-- stops a follower approving their own request (assertion 18).
+--
+-- So the client uses `ON CONFLICT DO NOTHING` instead, and these two assertions
+-- are the contract that makes that safe: the repeat insert succeeds, and it
+-- leaves the existing state exactly as it was. The second matters more than it
+-- looks — if a repeat insert could reset an *accepted* follow to `pending`,
+-- tapping Follow again would silently revoke your own access.
+
+select tests_as_owner();
+select tests_login((select id from ids where name = 'alice'));
+
+-- alice → carol already exists and is pending, from assertion 34.
+insert into public.follows (follower_id, followee_id)
+values ((select id from ids where name = 'alice'),
+        (select id from ids where name = 'carol'))
+on conflict (follower_id, followee_id) do nothing;
+
+select is(
+  (select count(*)::int from public.follows
+    where follower_id = (select id from ids where name = 'alice')
+      and followee_id = (select id from ids where name = 'carol')),
+  1,
+  'following twice is not an error and does not duplicate the edge');
+
+-- Now with an *accepted* edge: bob → carol was approved at assertion 20.
+select tests_as_owner();
+select tests_login((select id from ids where name = 'bob'));
+
+insert into public.follows (follower_id, followee_id)
+values ((select id from ids where name = 'bob'),
+        (select id from ids where name = 'carol'))
+on conflict (follower_id, followee_id) do nothing;
+
+select is(
+  (select state::text from public.follows
+    where follower_id = (select id from ids where name = 'bob')
+      and followee_id = (select id from ids where name = 'carol')),
+  'active',
+  'a repeat follow never sends an accepted request back to pending');
+
+
+-- MARK: - 39–42. title_watchers narrows to followees ---------------------------
+--
+-- The RPC's whole job is to answer "who that I follow has an opinion about this"
+-- rather than "who on this service does". The narrowing is a courtesy — nothing
+-- it hides is anything RLS would have let through — but the two rules it must
+-- NOT weaken are policy, and those are what the negative assertions below pin:
+-- an unpublished row stays invisible even to a follower, and a stranger's
+-- published row stays invisible for want of a follow edge.
+--
+-- Edges are (re)established here as the table owner rather than inherited from
+-- the assertions above, so this block does not silently change meaning when
+-- something earlier is reordered.
+
+select tests_as_owner();
+
+-- Bob follows alice and nobody else relevant; mallory stays a stranger.
+delete from public.follows where follower_id = (select id from ids where name = 'bob');
+
+-- Inserted as bob, not as the owner. `rate_limit_follows` records `auth.uid()`
+-- into `rate_events`, which is NOT NULL — so an owner-side insert fails on a
+-- constraint that has nothing to do with what is being tested here.
+select tests_login((select id from ids where name = 'bob'));
+insert into public.follows (follower_id, followee_id)
+values ((select id from ids where name = 'bob'),
+        (select id from ids where name = 'alice'));
+
+-- Forced rather than assumed: whether a fresh edge lands `active` or `pending`
+-- is the follow trigger's business and is asserted elsewhere. These four
+-- assertions are about what `title_watchers` does with an active edge.
+select tests_as_owner();
+update public.follows set state = 'active'
+ where follower_id = (select id from ids where name = 'bob')
+   and followee_id = (select id from ids where name = 'alice');
+
+-- Bob has his own published opinion of the same film, to prove self-exclusion.
+insert into public.ranked_items
+  (user_id, media_type, external_id, title, year, sentiment, score, rank_in_bucket, bucket_size)
+select id, 'movie', 'tmdb:movie:27205', 'Inception', 2010, 'liked', 7.10, 2, 5
+  from ids where name = 'bob'
+on conflict (user_id, media_type, external_id) do nothing;
+
+-- And alice has one that is deliberately NOT published. Set by UPDATE for the
+-- same reason the fixture above does: the BEFORE INSERT trigger overwrites
+-- whatever a caller sends, and by now alice's standing answer is "published".
+insert into public.ranked_items
+  (user_id, media_type, external_id, title, year, sentiment, score, rank_in_bucket, bucket_size)
+select id, 'movie', 'tmdb:movie:99999', 'Unreleased', 2026, 'liked', 8.00, 0, 5
+  from ids where name = 'alice'
+on conflict (user_id, media_type, external_id) do nothing;
+
+update public.ranked_items set is_published = true
+ where external_id = 'tmdb:movie:27205';
+update public.ranked_items set is_published = false
+ where external_id = 'tmdb:movie:99999';
+
+select tests_login((select id from ids where name = 'bob'));
+
+select is(
+  (select count(*)::int from public.title_watchers('movie', 'tmdb:movie:27205')
+    where handle = 'alice'),
+  1,
+  'title_watchers returns a followee''s published opinion');
+
+select is(
+  (select count(*)::int from public.title_watchers('movie', 'tmdb:movie:27205')
+    where handle = 'bob'),
+  0,
+  'title_watchers never returns the caller to themselves');
+
+select is(
+  (select count(*)::int from public.title_watchers('movie', 'tmdb:movie:27205')
+    where handle = 'mallory'),
+  0,
+  'title_watchers does not return a stranger, published or not');
+
+select is(
+  (select count(*)::int from public.title_watchers('movie', 'tmdb:movie:99999')),
+  0,
+  'an unpublished row stays invisible even to an active follower');
+
+
+-- `finish()` belongs after the last assertion, not in the middle. It used to sit
+-- ~200 lines up, which meant its summary counted only the assertions above it
+-- and reported every run as "planned N but ran 27" — a permanent, ignorable
+-- warning of exactly the kind that hides a real one.
+select * from finish();
 
 rollback;

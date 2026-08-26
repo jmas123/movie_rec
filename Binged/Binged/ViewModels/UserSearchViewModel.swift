@@ -65,12 +65,40 @@ final class UserSearchViewModel {
             guard !Task.isCancelled else { return }
             results = found
             phase = found.isEmpty ? .noResults : .results
-            for person in found where states[person.id] == nil {
-                states[person.id] = .none
-            }
+            await seedStates(for: found)
         } catch {
             guard !Task.isCancelled else { return }
             phase = .error(ErrorMessage.text(for: error))
+        }
+    }
+
+    /// Reads the viewer's real relationship with each result.
+    ///
+    /// **This used to assume `.none`**, which made every row say "Follow" —
+    /// including rows for people the viewer already followed, and people whose
+    /// request was still pending. Tapping such a row re-sent the follow, which
+    /// the server refused (`follows_update` is the followee's policy, not the
+    /// follower's), and the refusal surfaced as **"No such account."** on a
+    /// screen displaying that account.
+    ///
+    /// `follow` is idempotent now, so the stale button no longer errors — but a
+    /// button that offers to do something already done is still wrong, and a
+    /// pending request that presents itself as un-sent invites the user to send
+    /// it again and wonder why nothing happens.
+    ///
+    /// A failure leaves the states alone rather than falling back to `.none`:
+    /// silence is better than a confident wrong answer, and the search results
+    /// themselves are still worth showing.
+    private func seedStates(for people: [UserProfile]) async {
+        let unknown = people.map(\.id).filter { states[$0] == nil }
+        guard !unknown.isEmpty else { return }
+
+        guard let found = try? await service.followStates(for: unknown) else { return }
+        guard !Task.isCancelled else { return }
+
+        for id in unknown {
+            // Absent from the answer means no edge — see `followStates`.
+            states[id] = found[id] ?? .none
         }
     }
 
@@ -78,6 +106,17 @@ final class UserSearchViewModel {
 
     func state(for user: UserProfile) -> FollowState {
         states[user.id] ?? .none
+    }
+
+    /// Whether the relationship has actually been read back yet.
+    ///
+    /// `state(for:)` answers `.none` for an unknown user because a button needs
+    /// *a* title, but "no edge" and "not asked yet" are different claims and
+    /// only one of them should be actionable. Results appear before the states
+    /// do — deliberately, so search stays as fast as the search — and offering
+    /// Follow during that window is how a pending request gets sent twice.
+    func isStateKnown(for user: UserProfile) -> Bool {
+        states[user.id] != nil
     }
 
     /// Follows or unfollows, updating immediately and rolling back on failure.
@@ -114,6 +153,19 @@ final class UserSearchViewModel {
         } catch {
             phase = .error(ErrorMessage.text(for: error))
         }
+    }
+
+    /// Re-runs the last search after a failure, without the debounce — the
+    /// user has already waited, and tapping Try again is not a keystroke.
+    func retry() {
+        let needle = query.trimmingCharacters(in: .whitespaces)
+        guard !needle.isEmpty else {
+            phase = .prompt
+            return
+        }
+        searchTask?.cancel()
+        phase = .searching
+        searchTask = Task { await search(needle) }
     }
 
     func clearError() {

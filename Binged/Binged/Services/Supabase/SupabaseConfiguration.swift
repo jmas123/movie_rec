@@ -87,6 +87,21 @@ struct SupabaseConfiguration: Equatable, Sendable {
     func rpc(_ function: String) -> URL {
         url.appendingPathComponent("rest/v1/rpc").appendingPathComponent(function)
     }
+
+    /// An edge function, e.g. `tmdb-proxy`.
+    ///
+    /// Distinct from `rpc`, which reaches a *Postgres* function through
+    /// PostgREST. Edge functions are Deno, live at `/functions/v1/…`, and can
+    /// hold credentials the client must never see — which is the whole reason
+    /// the TMDB proxy is one.
+    ///
+    /// Returns `nil` when the name is empty, so a misconfigured caller cannot
+    /// accidentally address the functions root.
+    func functionURL(named name: String) -> URL? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return url.appendingPathComponent("functions/v1").appendingPathComponent(trimmed)
+    }
 }
 
 // MARK: - SupabaseError

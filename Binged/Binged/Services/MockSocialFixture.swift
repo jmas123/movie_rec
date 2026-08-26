@@ -70,6 +70,38 @@ struct MockSocialFixture {
         // state. Seeding one this way keeps that path reachable.
         rankings.set(sashaLibrary, for: sasha.id, visible: false)
 
+        // "Friends who watched", on a title the bundled catalog actually has,
+        // so the section is reachable in a mock build instead of being dead
+        // code that only the real server can exercise.
+        //
+        // Three people covering the three ways a verdict renders: an earned
+        // score with a review, a bucket too thin for a number (position only),
+        // and someone whose library the viewer may not read — seeded precisely
+        // so the filter that drops her stays exercised.
+        rankings.setWatchers(
+            [
+                TitleWatcher(
+                    userID: mina.id, handle: mina.handle, displayName: mina.displayName,
+                    avatarURL: nil, sentiment: .liked, score: 9.1, rankInBucket: 1,
+                    bucketSize: 12,
+                    review: "The folding-city sequence still does something to me "
+                          + "twelve years on. Everything after it is downhill in the "
+                          + "best possible way."
+                ),
+                TitleWatcher(
+                    userID: devon.id, handle: devon.handle, displayName: devon.displayName,
+                    avatarURL: nil, sentiment: .fine, score: 5.2, rankInBucket: 1,
+                    bucketSize: 3, review: nil
+                ),
+                TitleWatcher(
+                    userID: sasha.id, handle: sasha.handle, displayName: sasha.displayName,
+                    avatarURL: nil, sentiment: .liked, score: 8.0, rankInBucket: 0,
+                    bucketSize: 9, review: "No submarine, but I will allow it."
+                ),
+            ],
+            forExternalID: "tt1375666", mediaType: .movie
+        )
+
         return MockSocialFixture(
             viewer: viewer,
             auth: MockAuthService(signedInAs: viewer),
@@ -214,6 +246,7 @@ struct MockSocialFixture {
             body: body,
             createdAt: Date(timeIntervalSinceNow: -minutesAgo * 60),
             deletedAt: deletedMinutesAgo.map { Date(timeIntervalSinceNow: -$0 * 60) },
+            editedAt: nil,
             authorHandle: author.handle,
             authorDisplayName: author.displayName,
             authorAvatarURL: nil
@@ -224,14 +257,20 @@ struct MockSocialFixture {
 
     /// Twelve titles, so the bucket clears
     /// `minimumBucketSizeForScore` and the profile shows real numbers.
+    ///
+    /// **The ids are the bundled catalog's, deliberately.** A published ranking
+    /// and the device's library are matched on `externalId`, so a fixture that
+    /// invented its own ids could never overlap anything the user ranks — and
+    /// the taste comparison on `UserProfileView`, which is the whole reason to
+    /// open somebody's profile, would be permanently empty in the mock world.
     private static var minaLibrary: [RankedItem] {
         let titles: [(String, String, Int, MediaType)] = [
-            ("438631", "Dune: Part Two", 2024, .movie),
-            ("496243", "Parasite", 2019, .movie),
-            ("155", "The Dark Knight", 2008, .movie),
-            ("13", "Forrest Gump", 1994, .movie),
-            ("372058", "Your Name.", 2016, .movie),
-            ("324857", "Spider-Man: Into the Spider-Verse", 2018, .movie),
+            ("tt6751668", "Parasite", 2019, .movie),
+            ("tt1375666", "Inception", 2010, .movie),
+            ("tt0468569", "The Dark Knight", 2008, .movie),
+            ("tt0816692", "Interstellar", 2014, .movie),
+            ("tt4633694", "Spider-Man: Into the Spider-Verse", 2018, .movie),
+            ("tt4975722", "Moonlight", 2016, .movie),
         ]
         return bucket(titles, sentiment: .liked, size: 12)
     }
@@ -240,17 +279,17 @@ struct MockSocialFixture {
     /// withholds the numbers. The same rule the owner's own screen applies.
     private static var devonLibrary: [RankedItem] {
         let titles: [(String, String, Int, MediaType)] = [
-            ("95396", "Severance", 2022, .tvShow),
-            ("1396", "Breaking Bad", 2008, .tvShow),
-            ("60625", "Rick and Morty", 2013, .tvShow),
+            ("tt11280740", "Severance", 2022, .tvShow),
+            ("tt0903747", "Breaking Bad", 2008, .tvShow),
+            ("tt3398228", "BoJack Horseman", 2014, .tvShow),
         ]
         return bucket(titles, sentiment: .fine, size: 3)
     }
 
     private static var sashaLibrary: [RankedItem] {
         let titles: [(String, String, Int, MediaType)] = [
-            ("1399", "Game of Thrones", 2011, .tvShow),
-            ("530385", "Midsommar", 2019, .movie),
+            ("tt5687612", "Fleabag", 2016, .tvShow),
+            ("tt7784604", "Hereditary", 2018, .movie),
         ]
         return bucket(titles, sentiment: .fine, size: 2)
     }
@@ -271,7 +310,11 @@ struct MockSocialFixture {
                 year: entry.2,
                 score: range.upperBound - ((Double(index) + 0.5) / Double(size)) * span,
                 rankInBucket: index,
-                bucketSize: size
+                bucketSize: size,
+                // The bundled fixture has no artwork to point at, and a made-up
+                // TMDB path would 404 into the gradient anyway — so say so
+                // rather than guess.
+                posterPath: nil
             )
         }
     }

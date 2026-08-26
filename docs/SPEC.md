@@ -2,8 +2,8 @@ Build an iOS app MVP called "Binged": a Beli-style ranking app for movies and TV
 Stack
 
 SwiftUI, MVVM
-iOS 17+ deployment target
-Swift 5.9+
+iOS 17.0+ deployment target (was 18.2 until 2026-08-24; see CLAUDE.md)
+Swift 5 language mode
 SwiftData for persistence (local-only through v1.1)
 No third-party dependencies
 No authentication, no social features, no recommendations in this MVP

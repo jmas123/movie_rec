@@ -173,6 +173,9 @@ struct DiscoverView: View {
             case .ready(let recommendations) where !recommendations.isEmpty:
                 Section {
                     ForEach(recommendations) { recommendation in
+                        let placement = recommendations.firstIndex {
+                            $0.id == recommendation.id
+                        } ?? 0
                         NavigationLink {
                             // Canonicalised, exactly as `SearchView` does it.
                             // A recommendation carries a freshly minted,
@@ -188,6 +191,7 @@ struct DiscoverView: View {
                         } label: {
                             RecommendationRow(
                                 recommendation: recommendation,
+                                placement: placement,
                                 onQueue: {
                                     // Canonicalised for the same reason as the
                                     // push above: these write paths take a
@@ -237,10 +241,16 @@ struct DiscoverView: View {
                         .disabled(isLoading)
                     }
                 } header: {
-                    Text("For you")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("For you")
+                        Text("Ordered by your taste and selected mood")
+                            .font(.caption)
+                            .textCase(nil)
+                            .foregroundStyle(.secondary)
+                    }
                 } footer: {
-                    Text("Predicted ratings are estimates from your own rankings — "
-                         + "not scores you've given.")
+                    Text("Open a title for its predicted enjoyment. Match labels are "
+                         + "relative to this list, not scores you've given.")
                 }
 
             case .ready:

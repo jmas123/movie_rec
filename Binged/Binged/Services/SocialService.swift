@@ -23,6 +23,16 @@ protocol SocialService: Sendable {
 
     func relationship(with userID: UUID) async throws -> SocialRelationship
 
+    /// The viewer's follow state toward each of `userIDs`.
+    ///
+    /// A batch because the caller is a list: people search renders twenty-five
+    /// rows, and asking `relationship` per row would be twenty-five requests to
+    /// draw twenty-five buttons.
+    ///
+    /// Users with no edge are **absent from the result** rather than mapped to
+    /// `.none`, so a caller can tell "no relationship" from "not asked about".
+    func followStates(for userIDs: [UUID]) async throws -> [UUID: FollowState]
+
     /// Follows, or requests to follow a private account.
     /// - Returns: the resulting state, which the server decides.
     func follow(_ userID: UUID) async throws -> FollowState
@@ -31,6 +41,17 @@ protocol SocialService: Sendable {
 
     /// Pending requests awaiting the signed-in user's approval.
     func pendingRequests() async throws -> [UserProfile]
+
+    /// How many requests are waiting, for a badge that has no list to show.
+    ///
+    /// Separate from `pendingRequests` because the two want different amounts
+    /// of data: the screen wants every requester, and a badge that can only
+    /// render "9+" wants ten rows at most. A conformer that cannot do better
+    /// gets the default below.
+    ///
+    /// - Parameter limit: the most the caller can display. Returning fewer than
+    ///   the true total is expected once the total exceeds it.
+    func pendingRequestCount(limit: Int) async throws -> Int
 
     func acceptRequest(from userID: UUID) async throws
     func rejectRequest(from userID: UUID) async throws
@@ -48,6 +69,28 @@ protocol SocialService: Sendable {
     /// the blocker too and a client-side join yields bare ids. Without this,
     /// blocking is irreversible.
     func blockedAccounts() async throws -> [UserProfile]
+}
+
+// MARK: - Defaults
+
+extension SocialService {
+
+    /// One request per user, for conformers with nothing better. Correct but
+    /// chatty — `SupabaseSocialService` overrides it with a single query.
+    func followStates(for userIDs: [UUID]) async throws -> [UUID: FollowState] {
+        var states: [UUID: FollowState] = [:]
+        for id in userIDs {
+            states[id] = try await relationship(with: id).state
+        }
+        return states
+    }
+
+    /// Counts the full list. Correct everywhere, wasteful only where the list
+    /// is long — which is why `SupabaseSocialService` asks for a bounded page
+    /// instead.
+    func pendingRequestCount(limit: Int) async throws -> Int {
+        try await pendingRequests().count
+    }
 }
 
 // MARK: - SocialError

@@ -2,10 +2,21 @@
 //  ProfileView.swift
 //  Binged
 //
-//  Personal stats over the user's watched library: totals, a movie/TV split,
-//  average score, all-time top 5, and top genres. Per the roadmap this screen
-//  has no view model — the numbers are derived by the pure `ProfileStats` value
-//  type (testable on its own) from a `MediaLibraryViewModel` query.
+//  The user's own page: who they are, who follows them, who they follow, and
+//  personal stats over their watched library — totals, a movie/TV split,
+//  average score, all-time top 5, and taste.
+//
+//  Per the roadmap the stats half has no view model: the numbers are derived by
+//  the pure `ProfileStats` value type (testable on its own) from a
+//  `MediaLibraryViewModel` query. The social half is one call to
+//  `relationship(with:)`, whose counts work for any target including yourself.
+//
+//  **Why the identity block is here and not on a sixth screen.** Every other
+//  account in the app has a page — `UserProfileView` — reached by tapping their
+//  name, and the one account that had none was your own. The follower and
+//  following counts existed, `FollowListView` existed and was reachable from
+//  *other people's* profiles, and none of it was reachable for yourself. This
+//  tab was already "you"; it was just missing the half that says so.
 //
 
 import SwiftUI
@@ -17,15 +28,28 @@ struct ProfileView: View {
     @Environment(MediaLibraryViewModel.self) private var library
     @Environment(SessionViewModel.self) private var session
 
+    /// Only so a title tapped on somebody else's ranking can be resolved —
+    /// this tab has no catalog of its own to show. Taken from the environment
+    /// rather than a parameter for the reason `MediaServiceKey` gives.
+    @Environment(\.mediaService) private var catalog
+
     @State private var showSignIn = false
 
     /// Sends the user to Search from the empty state. Optional so previews and
     /// tests can build the screen without wiring up navigation.
     var onBrowse: (() -> Void)?
 
-    /// Passed to Settings for the blocked-accounts list; this screen does not
-    /// use it directly.
+    /// Used here for the follower and following counts, and passed to Settings
+    /// for the blocked-accounts list.
     var socialService: SocialService?
+
+    /// Needed only so a follower row can open the person it names.
+    var rankingFeedService: RankingFeedService?
+
+    /// Counts for the signed-in account. `nil` until the first load, and after
+    /// a failure — a count that might be wrong is worse than no count, because
+    /// it looks like information rather than a request that did not land.
+    @State private var counts: FollowCounts?
 
     private var stats: ProfileStats {
         ProfileStats(watched: library.allWatched)
@@ -34,13 +58,48 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if stats.isEmpty {
+                // Signed in, the page is worth showing even with nothing
+                // ranked yet: it is where your handle and your people live.
+                if stats.isEmpty && session.profile == nil {
                     emptyProfile
                 } else {
                     statsList
                 }
             }
             .navigationTitle("Profile")
+            // Registered on this stack so the counts can push a list, and a row
+            // of that list can push the person it names. One mechanism per
+            // stack, all the way down — see `FollowListRoute`.
+            .navigationDestination(for: FollowListRoute.self) { route in
+                if let socialService {
+                    FollowListView(
+                        direction: route.direction,
+                        subject: route.subject,
+                        service: socialService,
+                        rankings: rankingFeedService
+                    )
+                }
+            }
+            .navigationDestination(for: PersonRoute.self) { route in
+                if let socialService, let rankingFeedService {
+                    UserProfileView(
+                        handle: route.handle,
+                        social: socialService,
+                        rankings: rankingFeedService
+                    )
+                }
+            }
+            // A title tapped on somebody else's ranking, three pushes deep:
+            // Profile → followers → their page → one of their titles. The rows
+            // have always been `NavigationLink`s; without this destination on
+            // *this* stack they were links to nowhere, and tapping one did
+            // nothing at all. Registered here rather than inside
+            // `UserProfileView` because a stack keeps one destination per type,
+            // and one declared down there would shadow the stack's own.
+            .navigationDestination(for: TitleReference.self) { reference in
+                ForeignTitleView(reference: reference, catalog: catalog)
+            }
+            .task(id: session.profile?.id) { await loadCounts() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink { SettingsView(socialService: socialService) } label: {
@@ -92,11 +151,27 @@ struct ProfileView: View {
 
     private var statsList: some View {
         List {
-            Section("Summary") {
-                LabeledContent("Watched", value: "\(stats.totalWatched)")
-                LabeledContent("Movies", value: "\(stats.movieCount)")
-                LabeledContent("TV Shows", value: "\(stats.tvCount)")
-                LabeledContent("Average Score", value: averageText)
+            identitySection
+
+            if stats.isEmpty {
+                Section {
+                    EmptyStateView(
+                        systemImage: "chart.bar",
+                        message: "Rank something and your stats will appear here.",
+                        style: .inline,
+                        actionTitle: onBrowse == nil ? nil : "Browse",
+                        action: onBrowse
+                    )
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                }
+            } else {
+                Section("Summary") {
+                    LabeledContent("Watched", value: "\(stats.totalWatched)")
+                    LabeledContent("Movies", value: "\(stats.movieCount)")
+                    LabeledContent("TV Shows", value: "\(stats.tvCount)")
+                    LabeledContent("Average Score", value: averageText)
+                }
             }
 
             if !stats.topFive.isEmpty {
@@ -113,6 +188,97 @@ struct ProfileView: View {
 
             accuracySection
         }
+    }
+
+    // MARK: Identity
+
+    /// Who you are, and your two follow counts.
+    ///
+    /// Rendered only when there is an account to describe. Signed out this tab
+    /// is exactly the stats screen it has always been.
+    @ViewBuilder
+    private var identitySection: some View {
+        if let profile = session.profile {
+            Section {
+                HStack(spacing: Spacing.md) {
+                    PosterView(title: profile.name, posterURL: profile.avatarURL)
+                        .frame(width: 60, height: 60)
+                        .clipShape(Circle())
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(profile.name)
+                            .font(.title3.weight(.semibold))
+                        Text("@\(profile.handle)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        if profile.isPrivate {
+                            Label("Private", systemImage: "lock.fill")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, Spacing.xs)
+                .accessibilityElement(children: .combine)
+
+                if let bio = profile.bio, !bio.isEmpty {
+                    Text(bio)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+
+                followCounts(for: profile)
+            }
+        }
+    }
+
+    /// The two counts, as pushes.
+    ///
+    /// Both are links even at zero. An empty list that says "Nobody follows you
+    /// yet" is an answer; a number that stops being tappable when it reaches
+    /// zero reads as a control that has broken.
+    @ViewBuilder
+    private func followCounts(for profile: UserProfile) -> some View {
+        if socialService != nil {
+            HStack(spacing: 0) {
+                countLink(.followers, value: counts?.followers, subject: profile)
+                Divider().frame(height: 32)
+                countLink(.following, value: counts?.following, subject: profile)
+            }
+        }
+    }
+
+    private func countLink(
+        _ direction: FollowListView.Direction, value: Int?, subject: UserProfile
+    ) -> some View {
+        NavigationLink(value: FollowListRoute(direction: direction, subject: subject)) {
+            VStack(spacing: 2) {
+                // An em dash until the count lands, so the row never claims a
+                // zero it has not actually been told.
+                Text(value.map(String.init) ?? "—")
+                    .font(.title3.weight(.semibold).monospacedDigit())
+                Text(direction.title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(value.map(String.init) ?? "Unknown") \(direction.title)")
+    }
+
+    private func loadCounts() async {
+        guard let socialService, let profile = session.profile else {
+            counts = nil
+            return
+        }
+        // `relationship` counts followers and followees of the target with two
+        // plain queries, so it answers for your own id as readily as anyone's.
+        // The `state` it returns is meaningless here — you cannot follow
+        // yourself — and is deliberately ignored.
+        counts = try? await socialService.relationship(with: profile.id).counts
     }
 
     // MARK: Account
@@ -134,8 +300,16 @@ struct ProfileView: View {
             } header: {
                 Text("Account")
             } footer: {
-                Text("Your rankings stay on this device. An account only adds "
-                     + "the social features.")
+                // Was: "Your rankings stay on this device. An account only
+                // adds the social features." Both halves were false once signed
+                // in — the library syncs to the account unconditionally, which
+                // is what makes a second device restore it — and this is
+                // exactly the stale copy that gets repeated into a privacy
+                // policy. Consent governs who *else* can see a bucket, not
+                // whether it is stored. See `docs/PART-IV-SYNC.md` §3.
+                Text("Your library is saved to your account so you can restore "
+                     + "it on another device. Who else can see it is a separate "
+                     + "choice, per bucket, and off until you say otherwise.")
             }
         }
     }

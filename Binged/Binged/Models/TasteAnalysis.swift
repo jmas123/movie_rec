@@ -191,16 +191,10 @@ struct TasteAnalysis: Sendable {
 
         // MARK: Crowd agreement
 
-        let paired = watched.compactMap { item -> (Double, Double)? in
-            guard let score = item.score, let crowd = item.tmdbVoteAverage, crowd > 0 else {
-                return nil
-            }
-            return (score, crowd)
-        }
+        // Shared with the recommender's crowd weight — see `CrowdAgreement`.
+        let paired = CrowdAgreement.pairs(in: watched)
         crowdSampleSize = paired.count
-        crowdAgreement = paired.count >= 8
-            ? Ranks.spearman(paired.map(\.0), paired.map(\.1))
-            : nil
+        crowdAgreement = CrowdAgreement.measure(paired)
     }
 
     // MARK: - Crowd copy

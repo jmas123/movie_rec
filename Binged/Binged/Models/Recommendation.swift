@@ -35,6 +35,28 @@ struct Recommendation: Identifiable {
     /// quantity — see `RecommendationViewModel.rank`.
     let lift: Double
 
+    /// Chosen because the diversity pass deliberately reached past a run of
+    /// same-genre titles. This is presentation provenance, not a weaker score:
+    /// the row may honestly say "Something different" only when the selection
+    /// algorithm actually made that tradeoff.
+    let isExploration: Bool
+
+    init(
+        item: MediaItem,
+        predicted: PredictedScore,
+        moodWeight: Double,
+        isQueued: Bool,
+        lift: Double,
+        isExploration: Bool = false
+    ) {
+        self.item = item
+        self.predicted = predicted
+        self.moodWeight = moodWeight
+        self.isQueued = isQueued
+        self.lift = lift
+        self.isExploration = isExploration
+    }
+
     var id: String { item.externalId ?? item.id.uuidString }
 }
 

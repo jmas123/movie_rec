@@ -24,10 +24,29 @@ struct FeedView: View {
     private let social: SocialService?
     /// Only used to decide whether tapping an author leads anywhere.
     private let rankings: RankingFeedService?
+
+    /// Where a tapped author and a tapped post go.
+    ///
+    /// **This screen no longer registers navigation destinations of its own.**
+    /// It sits inside the Home tab's stack, and a stack keeps one destination
+    /// per data type: the `PersonRoute` destination declared here shadowed the
+    /// one at the stack's root, which killed every `NavigationLink(value:)`
+    /// push in people search, follower lists and follow requests. The owner of
+    /// the stack owns the routing; this screen just says what was tapped.
+    private let onOpenPerson: ((PersonRoute) -> Void)?
+    private let onOpenPost: (FeedPost) -> Void
+    /// Where a tapped *title* goes. Same contract as the two above: the stack
+    /// that owns the routing decides, and `nil` means the card draws its title
+    /// block as plain text instead of a button to nowhere.
+    private let onOpenTitle: ((TitleReference) -> Void)?
     private let viewerID: () -> UUID?
 
-    @State private var openPost: FeedPost?
-    @State private var openPerson: PersonRoute?
+    /// The reader's own handle, for the empty screen's "invite a friend" copy.
+    /// A closure, like the other session reads on this screen: the profile
+    /// arrives asynchronously after launch, so a value captured at init would
+    /// be nil for the rest of the session.
+    private let viewerHandle: () -> String?
+
     @State private var reportTarget: ReportTarget?
     @State private var blockCandidate: FeedPost?
 
@@ -37,6 +56,10 @@ struct FeedView: View {
         rankings: RankingFeedService? = nil,
         isSignedIn: @escaping () -> Bool,
         viewerID: @escaping () -> UUID? = { nil },
+        viewerHandle: @escaping () -> String? = { nil },
+        onOpenPerson: ((PersonRoute) -> Void)? = nil,
+        onOpenPost: @escaping (FeedPost) -> Void = { _ in },
+        onOpenTitle: ((TitleReference) -> Void)? = nil,
         onFindPeople: @escaping () -> Void = {},
         onSignIn: @escaping () -> Void = {}
     ) {
@@ -48,6 +71,10 @@ struct FeedView: View {
         self.social = social
         self.rankings = rankings
         self.viewerID = viewerID
+        self.onOpenPerson = onOpenPerson
+        self.onOpenPost = onOpenPost
+        self.onOpenTitle = onOpenTitle
+        self.viewerHandle = viewerHandle
         self.onFindPeople = onFindPeople
         self.onSignIn = onSignIn
     }
@@ -58,25 +85,16 @@ struct FeedView: View {
             case .loading:
                 ProgressView()
                     .accessibilityLabel("Loading your feed")
+            // One screen for all three, because they differ in what they ask
+            // the reader to do rather than in kind — see `FeedStarterView`,
+            // which also restores pull-to-refresh here: `.refreshable` needs a
+            // scrollable descendant, and the empty states used not to have one.
             case .signedOut:
-                EmptyStateView(
-                    systemImage: "person.crop.circle.badge.plus",
-                    message: "Sign in to see what the people you follow are ranking.",
-                    actionTitle: "Sign In",
-                    action: onSignIn
-                )
+                starter(.signedOut)
             case .followingNobody:
-                EmptyStateView(
-                    systemImage: "person.2",
-                    message: "You're not following anyone yet.",
-                    actionTitle: "Find People",
-                    action: onFindPeople
-                )
+                starter(.followingNobody)
             case .quiet:
-                EmptyStateView(
-                    systemImage: "moon.zzz",
-                    message: "Nothing new from the people you follow. Check back later."
-                )
+                starter(.quiet)
             case .error(let message):
                 EmptyStateView(systemImage: "exclamationmark.triangle", message: message)
             case .posts:
@@ -89,18 +107,6 @@ struct FeedView: View {
         // signed-in user to sign in until they thought to pull to refresh.
         .task(id: isSignedIn()) { await viewModel.refresh() }
         .refreshable { await viewModel.refresh() }
-        .navigationDestination(item: $openPost) { post in
-            if let service {
-                PostDetailView(
-                    post: post, service: service, viewerID: viewerID(), social: social
-                )
-            }
-        }
-        .navigationDestination(item: $openPerson) { route in
-            if let social, let rankings {
-                UserProfileView(handle: route.handle, social: social, rankings: rankings)
-            }
-        }
         .sheet(item: $reportTarget) { target in
             ReportSheet(target: target) { reason, note in
                 Task { await viewModel.report(target, reason: reason, note: note) }
@@ -125,6 +131,21 @@ struct FeedView: View {
         }
     }
 
+    private func starter(_ reason: FeedStarterView.Reason) -> some View {
+        FeedStarterView(
+            reason: reason,
+            handle: viewerHandle(),
+            followees: viewModel.followees,
+            onFindPeople: onFindPeople,
+            onSignIn: onSignIn,
+            // Reuses the destination the post list already registers, so a
+            // profile opens the same way from either.
+            onOpenPerson: { person in
+                onOpenPerson?(PersonRoute(handle: person.handle))
+            }
+        )
+    }
+
     // MARK: Alert bindings
 
     private var blockPrompt: Binding<Bool> {
@@ -143,14 +164,24 @@ struct FeedView: View {
                     onReact: { Task { await viewModel.toggleReaction(post) } },
                     // `onOpenActor` existed and was never supplied, so the
                     // header button disabled itself on every row ever drawn.
-                    onOpenActor: rankings == nil ? nil : { openPerson = PersonRoute(handle: post.authorHandle) },
-                    onOpenComments: { openPost = post }
+                    onOpenActor: onOpenPerson.map { open in
+                        { open(PersonRoute(handle: post.authorHandle)) }
+                    },
+                    onOpenComments: { onOpenPost(post) },
+                    onOpenTitle: onOpenTitle.map { open in
+                        { open(post.payload.reference) }
+                    }
                 )
                 // Report and block sit on the row itself, not only inside the
                 // post. Guideline 1.2 wants them reachable wherever another
                 // person's content appears, and the feed is that surface.
                 .contextMenu {
-                    Button { openPost = post } label: {
+                    if let onOpenTitle {
+                        Button { onOpenTitle(post.payload.reference) } label: {
+                            Label(post.payload.title, systemImage: "film")
+                        }
+                    }
+                    Button { onOpenPost(post) } label: {
                         Label("Comments", systemImage: "bubble.right")
                     }
                     Button { reportTarget = .post(post.id) } label: {

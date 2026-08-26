@@ -18,11 +18,26 @@
 
 import SwiftUI
 
+// MARK: - FollowListRoute
+
+/// A push to somebody's follower or following list.
+///
+/// A value rather than a `NavigationLink` with a destination closure, and that
+/// is not a style preference. A closure-based link inside a path-driven
+/// `NavigationStack` pushes a screen the path does not know about, and the next
+/// `NavigationLink(value:)` from *inside* that screen — every row of this list
+/// — resolves against a path that does not contain it and does nothing at all.
+/// One mechanism per stack, all the way down.
+struct FollowListRoute: Hashable {
+    let direction: FollowListView.Direction
+    let subject: UserProfile
+}
+
 // MARK: - FollowListView
 
 struct FollowListView: View {
 
-    enum Direction {
+    enum Direction: Hashable {
         case followers, following
 
         var title: String {

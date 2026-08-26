@@ -251,12 +251,21 @@ struct RecommendationRankingTests {
         let vm = makeViewModel(library: library, source: makeCrimeSource())
         let result = await vm.recommendations(type: .movie, mood: .crime)
 
-        let profile = RecommendationEngine().buildProfile(from: library.allWatched)
-        let baseline = profile.baseline(for: .movie)
-
-        for recommendation in result.recommendations {
-            #expect(abs(recommendation.lift - (recommendation.predicted.value - baseline)) < 0.0001)
+        // Every candidate of a type must be measured from the *same* baseline.
+        // A per-candidate one would make two lifts incomparable, which is the
+        // whole reason a single number is reported.
+        let implied = result.recommendations.map { $0.predicted.value - $0.lift }
+        let baseline = try #require(implied.first)
+        for candidate in implied {
+            #expect(abs(candidate - baseline) < 0.0001)
         }
+
+        // And that baseline is what a title the model knows nothing about
+        // scores — not the content model's baseline, which is only one of the
+        // three terms in the prediction.
+        let engine = HybridRecommendationEngine()
+        let profile = engine.buildProfile(from: library.allWatched)
+        #expect(abs(baseline - engine.baseline(for: .movie, using: profile)) < 0.0001)
     }
 }
 
@@ -291,6 +300,7 @@ struct RecommendationDiversityTests {
         #expect(result.recommendations.count == 20)
         #expect(dramas <= cap, "\(dramas) dramas exceeds the cap of \(cap)")
         #expect(dramas < 25, "the cap did nothing")
+        #expect(result.recommendations.filter(\.isExploration).count == 1)
     }
 
     @Test("A full list beats a strict cap when the pool is too narrow to give both")
@@ -592,16 +602,29 @@ struct TitlePredictionTests {
         #expect(prediction.predicted.familiesPresent.contains(.genre))
     }
 
-    @Test("Lift tracks the raw estimate so the band is stable under calibration")
-    func liftIgnoresCalibration() async throws {
+    @Test("Lift uses the hybrid model's sentiment-band baseline")
+    func liftUsesHybridBaseline() async throws {
         let library = try makeRankedLibrary(movies: 20, shows: 6)
         let vm = await warmedViewModel(library: library)
 
         let prediction = try #require(await vm.prediction(for: unwatched()))
-        let profile = RecommendationEngine().buildProfile(from: library.allWatched)
+        let hybrid = HybridRecommendationEngine()
+        let profile = hybrid.buildProfile(from: library.allWatched)
 
         #expect(abs(prediction.lift
-                    - (prediction.predicted.value - profile.baseline(for: .movie))) < 0.0001)
+                    - (prediction.predicted.value
+                       - hybrid.baseline(for: .movie, using: profile))) < 0.0001)
+    }
+
+    @Test("Eligible title predictions always expose a numeric estimate")
+    func predictionNumberIsNotHiddenByHeuristicConfidence() async throws {
+        let library = try makeRankedLibrary(movies: 20, shows: 6)
+        let vm = await warmedViewModel(library: library)
+
+        let prediction = try #require(await vm.prediction(for: unwatched()))
+        if case .band = prediction.display {
+            Issue.record("an eligible prediction was reduced to qualitative copy")
+        }
     }
 }
 

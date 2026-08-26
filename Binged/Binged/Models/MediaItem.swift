@@ -57,6 +57,14 @@ final class MediaItem {
     /// and never shown as if it were the user's own score.
     var tmdbVoteAverage: Double?
 
+    /// Number of TMDB votes behind `tmdbVoteAverage`.
+    ///
+    /// The recommender uses this only to shrink the crowd score toward a prior:
+    /// an 8.8 backed by twenty votes is not equivalent evidence to an 8.8 backed
+    /// by twenty thousand. Optional so existing stores lightweight-migrate and
+    /// older cached/search-created items remain valid.
+    var tmdbVoteCount: Int?
+
     // MARK: - User state
 
     var watchedStatus: WatchedStatus
@@ -129,6 +137,7 @@ final class MediaItem {
         genres: [String] = [],
         features: [String] = [],
         tmdbVoteAverage: Double? = nil,
+        tmdbVoteCount: Int? = nil,
         watchedStatus: WatchedStatus = .untracked,
         sentiment: Sentiment? = nil,
         score: Double? = nil,
@@ -151,6 +160,7 @@ final class MediaItem {
         self.genres = genres
         self.features = features
         self.tmdbVoteAverage = tmdbVoteAverage
+        self.tmdbVoteCount = tmdbVoteCount
         self.watchedStatus = watchedStatus
         self.sentiment = sentiment
         self.score = score

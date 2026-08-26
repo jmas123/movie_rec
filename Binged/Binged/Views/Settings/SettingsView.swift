@@ -22,6 +22,7 @@ struct SettingsView: View {
     /// Absent on a build with no server. The publishing section then has
     /// nothing true to say and does not appear.
     @Environment(SyncEngine.self) private var sync: SyncEngine?
+    @Environment(LibraryRestorer.self) private var restorer: LibraryRestorer?
 
     /// Needed only by the blocked-accounts list. Absent on a build with no
     /// server, where there is nothing to have blocked.
@@ -42,6 +43,7 @@ struct SettingsView: View {
     var body: some View {
         List {
             accountSection
+            restoreSection
             publishingSection
             dataSection
             safetySection
@@ -121,6 +123,47 @@ struct SettingsView: View {
     /// screen that says "48 titles" to somebody with 51 in their library reads
     /// as a bug or a lie, and the truth — the catalog never gave those three an
     /// id — is a sentence long.
+    /// What the account has given *back* to this device.
+    ///
+    /// Exists because a failed restore was previously invisible: `lastError` was
+    /// set and rendered nowhere, so "we could not reach your account" looked
+    /// exactly like "your account is empty" — the confusion
+    /// `LibraryRestoreService` throws rather than returning `[]` to avoid, undone
+    /// at the last step by having nowhere to say so.
+    ///
+    /// Only shown when there is something to report. A device that restored
+    /// cleanly and can sync everything says nothing, because there is nothing a
+    /// user needs to do.
+    @ViewBuilder
+    private var restoreSection: some View {
+        if let restorer, session.isSignedIn, restorer.lastError != nil || restorer.unsyncableCount > 0 {
+            Section {
+                if let error = restorer.lastError {
+                    Text(error)
+                        .foregroundStyle(.secondary)
+                    Button("Try Again") { Task { await restorer.restore(force: true) } }
+                }
+
+                if restorer.unsyncableCount > 0 {
+                    LabeledContent(
+                        "Staying on this device",
+                        value: "\(restorer.unsyncableCount) \(restorer.unsyncableCount == 1 ? "title" : "titles")"
+                    )
+                }
+            } header: {
+                Text("Your library")
+            } footer: {
+                // Two different things, deliberately not merged: one is a
+                // failure the user can retry, the other is a permanent property
+                // of titles the catalogue could not identify.
+                Text(restorer.lastError != nil
+                     ? "Your library on this device is unchanged. Nothing has been lost."
+                     : "These titles have no catalogue entry, so they cannot be saved to "
+                       + "your account and will not appear on your other devices.")
+            }
+        }
+    }
+
     @ViewBuilder
     private var publishingSection: some View {
         if let sync, session.isSignedIn {

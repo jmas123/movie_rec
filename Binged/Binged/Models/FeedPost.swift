@@ -61,7 +61,18 @@ struct FeedPost: Codable, Identifiable, Equatable, Hashable, Sendable {
         let sentiment: Sentiment?
         let rankInBucket: Int?
         let bucketSize: Int?
+
+        /// What the author wrote, captured at post time like everything else
+        /// here. Trimmed to `reviewExcerptLimit` before it is sent — a feed row
+        /// shows an excerpt, and freezing the whole essay into every follower's
+        /// page would make the payload the largest thing in the table.
         let reviewExcerpt: String?
+
+        /// TMDB's `/abc.jpg`. Optional, and nil on every post written before
+        /// this existed — `payload` is `jsonb`, so an added key needs no
+        /// migration and an absent one decodes as "no artwork", which draws the
+        /// gradient the card drew before.
+        var posterPath: String?
 
         enum CodingKeys: String, CodingKey {
             case externalId = "external_id"
@@ -72,7 +83,37 @@ struct FeedPost: Codable, Identifiable, Equatable, Hashable, Sendable {
             case rankInBucket = "rank_in_bucket"
             case bucketSize = "bucket_size"
             case reviewExcerpt = "review_excerpt"
+            case posterPath = "poster_path"
         }
+
+        var posterURL: String? {
+            TMDBImage.posterURL(path: posterPath)
+        }
+    }
+
+    /// How much of a review travels into the feed.
+    ///
+    /// Long enough to carry a thought, short enough that a card stays a card.
+    /// The full text stays on the author's device — a feed excerpt is a
+    /// pointer, not a copy.
+    static let reviewExcerptLimit = 240
+
+    /// The author's words, cut to `reviewExcerptLimit` on a word boundary with
+    /// an ellipsis when it had to be cut.
+    ///
+    /// Truncated here rather than at the view, so every follower sees the same
+    /// text and the stored payload is the thing that was actually published.
+    static func excerpt(from review: String?) -> String? {
+        guard let review else { return nil }
+        let trimmed = review.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard trimmed.count > reviewExcerptLimit else { return trimmed }
+
+        let cut = trimmed.prefix(reviewExcerptLimit)
+        // Back up to the last space so the excerpt does not end mid-word. If
+        // there is no space at all — one very long token — take the hard cut.
+        guard let lastSpace = cut.lastIndex(of: " ") else { return cut + "…" }
+        return cut[..<lastSpace].trimmingCharacters(in: .whitespaces) + "…"
     }
 
     enum CodingKeys: String, CodingKey {

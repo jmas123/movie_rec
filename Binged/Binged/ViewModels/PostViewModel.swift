@@ -23,6 +23,14 @@ final class PostViewModel {
     /// typing rather than after tapping send.
     var draft: String = ""
 
+    /// The comment being edited, and the text of that edit.
+    ///
+    /// Held by id rather than by value: the array is the source of truth and a
+    /// stored copy would go stale the moment anything else in the thread
+    /// changed.
+    private(set) var editingID: UUID?
+    var editDraft: String = ""
+
     @ObservationIgnored private let service: FeedService
     @ObservationIgnored private let social: SocialService?
     @ObservationIgnored private let viewerID: UUID?
@@ -61,6 +69,10 @@ final class PostViewModel {
         PostComment.maximumLength - draft.trimmingCharacters(in: .whitespacesAndNewlines).count
     }
 
+    var remainingEditCharacters: Int {
+        PostComment.maximumLength - editDraft.trimmingCharacters(in: .whitespacesAndNewlines).count
+    }
+
     /// Whether the viewer may delete this comment.
     ///
     /// Advisory only. The policy decides — this just avoids showing a control
@@ -68,6 +80,24 @@ final class PostViewModel {
     func canDelete(_ comment: PostComment) -> Bool {
         guard let viewerID, !comment.isDeleted else { return false }
         return comment.authorID == viewerID || post.authorID == viewerID
+    }
+
+    /// Whether the viewer may rewrite this comment.
+    ///
+    /// **Strictly narrower than `canDelete`**, and the difference is the point:
+    /// a post's owner may hide a comment on their own post but may never change
+    /// its words, because that would let them put a sentence in somebody else's
+    /// mouth under that person's name. `app.guard_comment_update` enforces it;
+    /// this mirrors the rule so the control is not offered where it would fail.
+    func canEdit(_ comment: PostComment) -> Bool {
+        guard let viewerID, !comment.isDeleted else { return false }
+        return comment.authorID == viewerID
+    }
+
+    /// The comment currently open in the editor, if any.
+    var editingComment: PostComment? {
+        guard let editingID else { return nil }
+        return comments.first { $0.id == editingID }
     }
 
     // MARK: Loading
@@ -102,12 +132,62 @@ final class PostViewModel {
         }
     }
 
+    // MARK: Editing
+
+    func beginEditing(_ comment: PostComment) {
+        guard canEdit(comment) else { return }
+        editingID = comment.id
+        editDraft = comment.body
+    }
+
+    func cancelEditing() {
+        editingID = nil
+        editDraft = ""
+    }
+
+    var editProblem: PostComment.Problem? {
+        editDraft.isEmpty ? nil : PostComment.validate(editDraft)
+    }
+
+    /// Whether Save should be offered.
+    ///
+    /// Unchanged text is not saveable: sending it would stamp `edited_at` on a
+    /// comment nobody edited, which is precisely the marker other people rely
+    /// on to mean something.
+    var canSaveEdit: Bool {
+        guard let comment = editingComment, PostComment.validate(editDraft) == nil else {
+            return false
+        }
+        return editDraft.trimmingCharacters(in: .whitespacesAndNewlines) != comment.body
+    }
+
+    func saveEdit() async {
+        guard canSaveEdit, let comment = editingComment else { return }
+        let body = editDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        do {
+            try await service.editComment(comment.id, body: body)
+            if let index = comments.firstIndex(where: { $0.id == comment.id }) {
+                comments[index] = comment.edited(body: body, at: .now)
+            }
+            cancelEditing()
+        } catch {
+            // The editor stays open with the text intact — the user's words are
+            // the one thing a failure here must not cost them.
+            lastError = ErrorMessage.text(for: error)
+        }
+    }
+
     func delete(_ comment: PostComment) async {
         do {
             try await service.deleteComment(comment.id)
             if let index = comments.firstIndex(where: { $0.id == comment.id }) {
                 comments[index] = comment.deleted()
             }
+            // A deleted comment cannot stay open in the editor: `canEdit` is
+            // false for it, so Save would silently do nothing and the sheet
+            // would be a dead end.
+            if editingID == comment.id { cancelEditing() }
             post = post.withCommentCount(max(0, post.commentCount - 1))
         } catch {
             lastError = ErrorMessage.text(for: error)
@@ -177,7 +257,7 @@ extension PostComment {
     func deleted() -> PostComment {
         PostComment(
             id: id, postID: postID, authorID: authorID, body: body,
-            createdAt: createdAt, deletedAt: .now,
+            createdAt: createdAt, deletedAt: .now, editedAt: editedAt,
             authorHandle: authorHandle, authorDisplayName: authorDisplayName,
             authorAvatarURL: authorAvatarURL
         )

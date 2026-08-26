@@ -39,6 +39,7 @@ private final class StubFeedService: FeedService, @unchecked Sendable {
         throw SocialError.underlying("not implemented")
     }
 
+    func editComment(_ commentID: UUID, body: String) async throws {}
     func deleteComment(_ commentID: UUID) async throws {}
 
     func report(_ target: ReportTarget, reason: ReportReason, note: String?) async throws {

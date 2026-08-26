@@ -1565,7 +1565,27 @@ phases 29–34 are tabled there rather than duplicated here.
 
 ---
 
-## Phase 35 — Take the TMDB token out of the bundle ⬜
+## Phase 35 — Take the TMDB token out of the bundle 🟡 (client done; deploy is manual)
+
+> **Client landed 2026-08-24, 580 tests green.** `TMDBConfiguration` gained a
+> `Transport` enum — `.direct(readToken:)` or `.proxy(baseURL:anonKey:)` — so the
+> host and the credential are chosen together and cannot drift apart. A single
+> `request(for:)` maps a canonical TMDB URL onto whichever transport is active,
+> which means `TMDBEndpoint` still builds `api.themoviedb.org` URLs as its
+> internal representation and every existing URL-shape test stays meaningful.
+> `resolve()` prefers proxy → bundled token → mock.
+>
+> **A test failure proved the point better than the tests do.** An assertion
+> that `.main` carried no TMDB key failed by printing the project's real token
+> in full, straight out of the *test host's* bundle. That is the exposure this
+> phase exists to close, demonstrated rather than argued.
+>
+> **Still manual, and the phase is not done until it is:** `supabase functions
+> deploy tmdb-proxy`, `supabase secrets set TMDB_READ_TOKEN=…`, then remove the
+> token from the release build and **rotate it** — anything that shipped in a
+> bundle should be assumed public. Until the function is deployed, every build
+> still falls through to the direct path, so nothing has actually changed on
+> anyone's device yet.
 
 **Goal:** Stop shipping a credential that anyone can extract from the app.
 

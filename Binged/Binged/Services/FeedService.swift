@@ -32,6 +32,22 @@ protocol FeedService: Sendable {
     @discardableResult
     func addComment(to postID: UUID, body: String) async throws -> PostComment
 
+    /// Rewrites the body of your own comment and stamps it edited.
+    ///
+    /// **Author-only, and the server is what enforces that.** `comments_update`
+    /// admits the post's owner as well — they may soft-delete a comment on
+    /// their own post — so the column-level rule lives in
+    /// `app.guard_comment_update`, which refuses a body or `edited_at` change
+    /// from anyone but the author. The client hides the control; the trigger is
+    /// what makes it true.
+    ///
+    /// - Returns: nothing, like `deleteComment`. `post_comments` joins the
+    ///   author's profile onto every row, so a `PATCH` on `comments` alone
+    ///   cannot return a whole `PostComment`; the caller updates its copy with
+    ///   `PostComment.edited(body:at:)` instead of refetching a page to change
+    ///   one string.
+    func editComment(_ commentID: UUID, body: String) async throws
+
     /// Soft delete. Your own comment, or any comment on your own post — the
     /// policy decides which, not the client.
     func deleteComment(_ commentID: UUID) async throws
@@ -181,19 +197,50 @@ final class SupabaseFeedService: FeedService, @unchecked Sendable {
 
     @discardableResult
     func addComment(to postID: UUID, body: String) async throws -> PostComment {
-        guard let author = await client.currentUserID else { throw SupabaseError.unauthorized }
+        // An RPC, for the same reason `post_comments` is one: a `PostComment`
+        // carries the author's handle, name and avatar, and an insert into
+        // `comments` can only ever return the bare table row.
+        //
+        // This replaced a direct insert that could not have worked against a
+        // real database on two counts — it wrote a column named `author_id`
+        // (the table has `user_id`, exactly as the note on `NewPost` above
+        // says), and it decoded the insert's own representation as a
+        // `PostComment`, which needs joined columns an insert does not return.
+        // `MockFeedService` encodes nothing and joins nothing, so 589 tests
+        // stayed green over a comment box that had never posted a comment.
+        //
+        // The author is `auth.uid()` inside the function rather than a
+        // parameter, so there is no version of this request that names somebody
+        // else as the author.
         let rows: [PostComment] = try await client.send(
             .init(
                 method: "POST",
-                url: configuration.rest("comments"),
+                url: configuration.rpc("add_comment"),
                 body: try SupabaseClient.encoder.encode(
-                    NewComment(postID: postID, authorID: author, body: body)
-                ),
-                headers: ["Prefer": "return=representation"]
+                    ["post": postID.uuidString, "comment_body": body]
+                )
             )
         )
         guard let comment = rows.first else { throw SupabaseError.decoding("No comment returned") }
         return comment
+    }
+
+    func editComment(_ commentID: UUID, body: String) async throws {
+        // `edited_at` is sent by the client rather than set by a trigger so
+        // that a body change and its marker are one row version — a trigger
+        // would work too, but this keeps the rule visible where the write is,
+        // and the trigger already refuses the pair from anyone but the author.
+        try await client.send(
+            .init(
+                method: "PATCH",
+                url: configuration.rest("comments"),
+                query: [URLQueryItem(name: "id", value: "eq.\(commentID.uuidString.lowercased())")],
+                body: try SupabaseClient.encoder.encode(
+                    CommentEdit(body: body, editedAt: .now)
+                ),
+                headers: ["Prefer": "return=minimal"]
+            )
+        )
     }
 
     func deleteComment(_ commentID: UUID) async throws {
@@ -229,14 +276,16 @@ final class SupabaseFeedService: FeedService, @unchecked Sendable {
         )
     }
 
-    private struct NewComment: Encodable {
-        let postID: UUID
-        let authorID: UUID
+    /// What `editComment` sends. There is no `NewComment` sibling any more:
+    /// inserting a comment goes through `add_comment`, and leaving a payload
+    /// struct behind that names a column the table does not have is how the
+    /// bug above survived being read several times.
+    private struct CommentEdit: Encodable {
         let body: String
+        let editedAt: Date
         enum CodingKeys: String, CodingKey {
-            case postID = "post_id"
-            case authorID = "author_id"
             case body
+            case editedAt = "edited_at"
         }
     }
 

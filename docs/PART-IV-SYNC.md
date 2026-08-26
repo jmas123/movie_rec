@@ -241,6 +241,22 @@ sign in → fetch remote rows → merge → recompute affected buckets
 A failure anywhere in the first four steps must leave the outbox untouched and
 the local library unchanged. Half a merge is worse than none.
 
+**Restore runs on three triggers, not one** — sign-in, foreground, and
+connectivity return (`BingedApp.catchUp()`). The first version wired restore to
+sign-in only and left foreground and connectivity draining alone, which was a
+real hole rather than an omission of polish: `LibraryRestorer` deliberately does
+*not* mark an account restored when the fetch throws, so that a later trigger
+can try again — and nothing tried again. A user who signed in with no signal
+stayed un-restored until they signed out and back in, and the app looked like it
+had lost their library. Repeats are cheap by construction: a successful restore
+is remembered per account, and a drain with an empty outbox does nothing.
+
+**A failed restore is visible.** `lastError` is rendered in Settings under "Your
+library", with a retry, alongside the count of titles that can never sync
+because the catalogue gave them no id. Setting an error nobody displays would
+undo the whole reason `LibraryRestoreService` throws instead of returning `[]`:
+"we could not reach your account" must never look like "your account is empty".
+
 ## 7. What syncs
 
 Per the decision: **ranked and want-to-watch titles with a resolved

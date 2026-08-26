@@ -41,6 +41,19 @@ final class FeedViewModel {
     /// there being no further page.
     private(set) var loadMoreFailed = false
 
+    /// Who the reader follows, loaded only when the feed comes back empty.
+    ///
+    /// The empty screen needs the *list*, not just whether it is non-empty: an
+    /// unexplained empty feed reads as a follow that silently failed, and the
+    /// answer to that is showing the people rather than describing them. It
+    /// costs nothing on the normal path — a feed with posts never asks.
+    private(set) var followees: [UserProfile] = []
+
+    /// How many followees the empty screen will draw. A horizontal strip, so
+    /// the number is a display bound rather than a claim about the graph — the
+    /// copy beside it counts what was fetched, which is why this is not 1.
+    static let followeePreviewLimit = 12
+
     @ObservationIgnored private let service: FeedService?
     @ObservationIgnored private let social: SocialService?
     @ObservationIgnored private let isSignedIn: () -> Bool
@@ -84,10 +97,25 @@ final class FeedViewModel {
     /// Three distinct answers, because they need three different actions:
     /// sign in, find people, or simply wait.
     private func emptyPhase(for page: [FeedPost]) async throws -> Phase? {
-        guard page.isEmpty else { return nil }
-        guard let social, let viewer = viewerID() else { return .quiet }
-        let followees = try await social.following(of: viewer, limit: 1)
-        return followees.isEmpty ? .followingNobody : .quiet
+        guard !page.isEmpty else {
+            guard let social, let viewer = viewerID() else {
+                followees = []
+                return .quiet
+            }
+            // Fetched at display width rather than at `limit: 1`. The old call
+            // asked only whether the list was non-empty and threw the rows
+            // away, which is the same request for the same page — the extra
+            // rows are free, and they are what the quiet screen draws.
+            followees = try await social.following(
+                of: viewer, limit: Self.followeePreviewLimit
+            )
+            return followees.isEmpty ? .followingNobody : .quiet
+        }
+
+        // A feed with posts has no empty screen to feed, so drop whatever an
+        // earlier empty load left behind rather than letting it go stale.
+        followees = []
+        return nil
     }
 
     /// Next page, keyed on the oldest post already held.

@@ -68,7 +68,16 @@ struct RootTabView: View {
             .tabItem { Label("Home", systemImage: "house") }
             .tag(Tab.home)
 
-            SearchView(service: service, isActive: selection == .search)
+            // The social services go in so this tab can search people as well
+            // as titles. Without them it is exactly the catalog search it has
+            // always been — the People scope simply does not appear.
+            SearchView(
+                service: service,
+                isActive: selection == .search,
+                socialService: socialService,
+                rankingFeedService: rankingFeedService,
+                feedService: feedService
+            )
                 .tabItem { Label("Search", systemImage: "magnifyingglass") }
                 .tag(Tab.search)
 
@@ -82,7 +91,11 @@ struct RootTabView: View {
                 .tabItem { Label("Ranking", systemImage: "trophy") }
                 .tag(Tab.ranking)
 
-            ProfileView(onBrowse: { selection = .search }, socialService: socialService)
+            ProfileView(
+                onBrowse: { selection = .search },
+                socialService: socialService,
+                rankingFeedService: rankingFeedService
+            )
                 .tabItem { Label("Profile", systemImage: "person") }
                 .tag(Tab.profile)
         }

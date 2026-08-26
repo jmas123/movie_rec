@@ -43,6 +43,20 @@ protocol MediaService {
     /// array rather than throwing — running off the end is a normal outcome of
     /// paging, not an error.
     func popularTitles(type: MediaType, page: Int) async throws -> [MediaItem]
+
+    /// Everything the detail screen shows beyond what `MediaItem` stores — the
+    /// runtime, the cast, who directed it, where it is streaming.
+    ///
+    /// Returns `nil` rather than throwing, and takes no error path at all: this
+    /// enriches a screen that already has a title, a poster, an overview and
+    /// the user's own ranking on it. A failed lookup should cost the screen its
+    /// cast strip, never its content, so "could not fetch" and "TMDB has
+    /// nothing" collapse into the same answer.
+    ///
+    /// - Parameter region: ISO 3166-1 country code deciding which streaming
+    ///   services are reported. Passed in rather than read from `Locale` inside
+    ///   an implementation so a test can pin it.
+    func titleDetails(id: String, region: String) async -> TitleDetails?
 }
 
 // MARK: - Default catalog enumeration
@@ -55,5 +69,13 @@ extension MediaService {
     /// pages", which is exactly what a service with nothing to enumerate means.
     func popularTitles(type: MediaType, page: Int) async throws -> [MediaItem] {
         []
+    }
+
+    /// Conformers with no detail payload to offer — the search-only stubs, and
+    /// the bundled catalog — report nothing rather than inventing a cast list.
+    /// The detail screen renders the sections it has, so "nothing" degrades to
+    /// the screen as it was before this existed.
+    func titleDetails(id: String, region: String) async -> TitleDetails? {
+        nil
     }
 }

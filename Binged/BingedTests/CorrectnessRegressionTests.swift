@@ -95,6 +95,7 @@ struct PaginationHonestyTests {
         func addComment(to postID: UUID, body: String) async throws -> PostComment {
             throw SocialError.underlying("not implemented")
         }
+        func editComment(_ commentID: UUID, body: String) async throws {}
         func deleteComment(_ commentID: UUID) async throws {}
         func report(_ target: ReportTarget, reason: ReportReason, note: String?) async throws {}
     }
@@ -158,6 +159,7 @@ struct PaginationHonestyTests {
         func addComment(to postID: UUID, body: String) async throws -> PostComment {
             throw SocialError.underlying("not implemented")
         }
+        func editComment(_ commentID: UUID, body: String) async throws {}
         func deleteComment(_ commentID: UUID) async throws {}
         func report(_ target: ReportTarget, reason: ReportReason, note: String?) async throws {}
     }

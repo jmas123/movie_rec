@@ -112,6 +112,30 @@ struct CandidatePoolBuilderTests {
         #expect(Set(ids).count == ids.count)
     }
 
+    @Test("Every mood component gets its own retrieval budget")
+    func everyComponentIsFetched() async {
+        // `epic`/movie has a broad genre query followed by a narrower keyword
+        // query. Filling the target from the first component must not suppress
+        // the second: that silently erases the more specific candidates that
+        // usually carry the strongest intent signal.
+        let components = Mood.epic.queryComponents(for: .movie, vocabulary: vocabulary)
+        #expect(components.count == 2)
+
+        let source = StubCandidateSource(pages: [
+            components[0].identity: [["genre-a", "genre-b"]],
+            components[1].identity: [["keyword-a", "keyword-b"]],
+        ], vocabulary: vocabulary)
+
+        let builder = CandidatePoolBuilder(
+            source: source, cache: makeDisabledCache(), target: 2, maxPages: 1
+        )
+        let pool = await builder.build(moods: [.epic], types: [.movie])
+
+        #expect(source.requests.contains("\(components[0].identity):1"))
+        #expect(source.requests.contains("\(components[1].identity):1"))
+        #expect(pool.count(mood: .epic, type: .movie) == 4)
+    }
+
     @Test("A title with no external id cannot join the pool")
     func titlesWithoutIdentityAreDropped() async {
         // Identity is the whole basis of dedupe, so an anonymous title would

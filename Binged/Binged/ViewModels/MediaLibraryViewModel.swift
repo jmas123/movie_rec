@@ -639,7 +639,27 @@ final class MediaLibraryViewModel {
     /// whitespace-only string clears the review back to `nil`.
     func updateReview(_ item: MediaItem, to text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hadNone = (item.review ?? "").isEmpty
         item.review = trimmed.isEmpty ? nil : trimmed
+
+        // **First write only, and only once the title is watched.**
+        //
+        // `FeedPost.Kind.reviewed` existed from the start and nothing ever
+        // emitted it, so a review written after the ranking post had already
+        // gone out reached the server and stopped there. Writing one is an act
+        // worth a post, the same way ranking is.
+        //
+        // Edits are deliberately silent: a review is a thing people go back and
+        // fix typos in, and re-posting on every save would put one person's
+        // second thoughts through every follower's feed several times over. The
+        // feed is a record of acts, and correcting a sentence is not a new one.
+        //
+        // A review written *during* the mark-watched flow costs no extra post
+        // either: the title is not `.watched` yet at that point, so this stays
+        // quiet and the `.ranked` post that follows carries the text.
+        if hadNone, !trimmed.isEmpty, item.watchedStatus == .watched {
+            recordPost(item, kind: .reviewed)
+        }
         save()
     }
 
@@ -690,6 +710,30 @@ final class MediaLibraryViewModel {
             range: sentiment.scoreRange
         )
         markDirty(sentiment, type: type)
+    }
+
+    // MARK: - Taste comparison
+
+    /// The device's side of a taste comparison, reduced to what `TasteMatch`
+    /// reasons about.
+    ///
+    /// Score *visibility* is resolved here rather than in the pure type: it
+    /// depends on the size of the bucket a title sits in, which only the
+    /// library can see. Titles with no `externalId` are dropped — there is
+    /// nothing to key them to somebody else's ranking with.
+    func tasteEntries() -> [TasteMatch.LibraryEntry] {
+        allItems.compactMap { item in
+            guard let externalId = item.externalId else { return nil }
+            return TasteMatch.LibraryEntry(
+                externalId: externalId,
+                mediaType: item.type,
+                status: item.watchedStatus,
+                sentiment: item.sentiment,
+                score: item.score,
+                displayScore: displayScore(for: item),
+                dismissed: item.dismissed
+            )
+        }
     }
 
     // MARK: - Account sync
@@ -784,9 +828,14 @@ final class MediaLibraryViewModel {
             title: row.title,
             year: row.year,
             type: row.mediaType,
+            // Rebuilt rather than stored: the server keeps TMDB's path, so the
+            // image host and size stay this build's choice instead of whatever
+            // the publishing device happened to use.
+            posterURL: TMDBImage.posterURL(path: row.posterPath),
             watchedStatus: row.sentiment == nil ? .wantToWatch : .watched,
             sentiment: row.sentiment,
             rankInBucket: row.rankInBucket,
+            review: row.review,
             lastRankedAt: row.updatedAt
         )
         modelContext.insert(item)

@@ -44,5 +44,16 @@ CURRENT_PROJECT_VERSION = 1
 //
 // Note this puts the token in the built bundle, which is extractable by anyone
 // with the .app. That is acceptable for a locally-installed development build
-// and is not acceptable for distribution — see roadmap open question 11.
+// and is NOT acceptable for distribution.
+//
+// **The client no longer requires it.** As of Phase 35 the app prefers the
+// `tmdb-proxy` edge function whenever Supabase is configured, which keeps the
+// TMDB credential server-side and sends only the anon key — public by design.
+// `TMDBConfiguration.resolve` picks proxy, then bundled token, then the mock
+// catalogue, so a build for release simply omits TMDB_READ_TOKEN and loses
+// nothing.
+//
+// A release build should therefore have NO value here, and that is checkable
+// rather than a matter of trust: grep the built .app for the token, exactly as
+// Phase 12 grepped it to prove the opposite.
 INFOPLIST_FILE = Config/Info.plist

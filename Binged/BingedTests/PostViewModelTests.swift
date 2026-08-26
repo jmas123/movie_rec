@@ -50,7 +50,7 @@ struct PostCommentTests {
         // the counts wrong.
         let comment = PostComment(
             id: UUID(), postID: UUID(), authorID: UUID(), body: "secret",
-            createdAt: .now, deletedAt: .now,
+            createdAt: .now, deletedAt: .now, editedAt: nil,
             authorHandle: "a", authorDisplayName: nil, authorAvatarURL: nil
         )
         #expect(comment.isDeleted)
@@ -95,6 +95,7 @@ struct PostViewModelTests {
             func addComment(to postID: UUID, body: String) async throws -> PostComment {
                 throw SocialError.underlying("offline")
             }
+            func editComment(_ commentID: UUID, body: String) async throws {}
             func deleteComment(_ commentID: UUID) async throws {}
             func report(_ target: ReportTarget, reason: ReportReason, note: String?) async throws {}
         }
@@ -153,6 +154,7 @@ struct PostViewModelTests {
             func addComment(to postID: UUID, body: String) async throws -> PostComment {
                 throw SocialError.blocked
             }
+            func editComment(_ commentID: UUID, body: String) async throws {}
             func deleteComment(_ commentID: UUID) async throws {}
             func report(_ target: ReportTarget, reason: ReportReason, note: String?) async throws {}
         }
@@ -193,7 +195,7 @@ struct PostViewModelTests {
         let myPost = samplePost(author: me)
         let onMyPost = PostComment(
             id: UUID(), postID: myPost.id, authorID: stranger, body: "hi",
-            createdAt: .now, deletedAt: nil, authorHandle: "s",
+            createdAt: .now, deletedAt: nil, editedAt: nil, authorHandle: "s",
             authorDisplayName: nil, authorAvatarURL: nil
         )
         let mine = PostViewModel(post: myPost, service: MockFeedService(), viewerID: me)

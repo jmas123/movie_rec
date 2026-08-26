@@ -13,7 +13,7 @@ import Foundation
 
 // MARK: - RankedItem
 
-struct RankedItem: Codable, Identifiable, Equatable, Sendable {
+struct RankedItem: Codable, Identifiable, Hashable, Sendable {
 
     let externalId: String
     let mediaType: MediaType
@@ -31,6 +31,20 @@ struct RankedItem: Codable, Identifiable, Equatable, Sendable {
     /// refuses to show locally, and publishing it would be worse, not better.
     let bucketSize: Int
 
+    /// TMDB's `/abc.jpg`, as published. Optional because `ranked_items` has
+    /// always had the column but nothing decoded it, so every row written
+    /// before this — and every row for a title with no artwork — has none.
+    ///
+    /// The *path*, not a URL, for the reason `TMDBImage.posterPath` gives: a
+    /// stored `w500` URL would pin every published row to today's choice of
+    /// image host and size.
+    ///
+    /// The one `var` on an otherwise immutable row, so the memberwise
+    /// initialiser defaults it to nil: every other field is needed to
+    /// reconstruct a ranking, while this is decoration a caller may not have.
+    /// Nothing mutates it.
+    var posterPath: String? = nil
+
     var id: String { "\(mediaType.rawValue)|\(externalId)" }
 
     enum CodingKeys: String, CodingKey {
@@ -42,6 +56,7 @@ struct RankedItem: Codable, Identifiable, Equatable, Sendable {
         case score
         case rankInBucket = "rank_in_bucket"
         case bucketSize = "bucket_size"
+        case posterPath = "poster_path"
     }
 
     /// The score, or `nil` when the bucket has not earned a number.
@@ -56,6 +71,12 @@ struct RankedItem: Codable, Identifiable, Equatable, Sendable {
     /// "#2 in Liked it" — what is shown when the score is withheld.
     var positionDescription: String {
         "#\(rankInBucket + 1) in “\(sentiment.displayName)”"
+    }
+
+    /// The artwork to draw, or `nil` for a row that carries none — in which
+    /// case `PosterView` falls back to the gradient, as everywhere else.
+    var posterURL: String? {
+        TMDBImage.posterURL(path: posterPath)
     }
 }
 

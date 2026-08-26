@@ -9,8 +9,11 @@ Binged is an iOS app for ranking movies and TV shows in the style of Beli, local
 - SwiftUI (UI)
 - MVVM (architecture)
 - SwiftData (persistence; the device's copy, and the one the ranking flow reads and writes)
-- iOS 17+ deployment target
-- Swift 5.9+
+- iOS 17.0+ deployment target (`IPHONEOS_DEPLOYMENT_TARGET = 17.0`). Lowered from
+  18.2 on 2026-08-24: nothing in the app needs 18, and 18.2 excluded a great many
+  devices for no gain. **Compiled and unit-tested at 17.0; not yet run on a 17
+  runtime** — only 18.3 is installed locally.
+- Swift 5 language mode (`SWIFT_VERSION = 5.0`), Xcode 16 toolchain
 - Zero third-party dependencies
 - TMDB for catalog metadata (Part II) and Supabase for accounts and the social graph (Part III) — both reached through a hand-rolled `URLSession` client behind a protocol in `Services/`, so neither adds a Swift Package
 
@@ -38,9 +41,14 @@ Binged/Binged/
   Resources/             MockMedia.json
   PrivacyInfo.xcprivacy
 supabase/
-  migrations/       (7)  social, moderation, client_rpcs, follow_list_rpcs,
-                         library_sync, fix_is_published_privileges, blocked_accounts
+  migrations/      (10)  social, moderation, client_rpcs, follow_list_rpcs,
+                         library_sync, fix_is_published_privileges, blocked_accounts,
+                         reserve_binge_handle, reserve_binged_handle, comment_editing
+                         — the last three are written and NOT pushed; see
+                         docs/MANUAL-VERIFICATION.md §7
   tests/rls_test.sql     33 pgTAP assertions, mostly negative
+  tests/comment_editing_test.sql
+                         10 more, on who may rewrite a comment
 ```
 
 **Not exhaustive — 85 Swift files and growing.** The shape is what matters:
@@ -110,6 +118,7 @@ xcodebuild -scheme Binged -destination 'platform=iOS Simulator,name=iPhone 16' t
 - **Do not let the social layer touch the ranking mechanic.** `RankingEngine` stays pure, synchronous and local; scores stay derived from bucket position; the comparison flow never awaits a network call; and the entire app stays usable signed out. These are invariants, not preferences (`PART-III-SOCIAL.md` §2).
 - **Do not trust the client for authorisation.** The Supabase anon key ships in the bundle by design and carries no privilege — row-level security in Postgres is the whole security boundary. Any rule the app enforces must also exist as a policy, or it does not exist.
 - Do not let the user enter a numeric rating directly. Scores are derived from bucket position.
+- **Do not hand-tune the recommender.** Every constant in `HybridRecommendationEngine` — the crowd weight, its vote-count shrinkage, the agreement floor — comes out of the offline evaluation in [`docs/RECOMMENDER-EVALUATION.md`](./docs/RECOMMENDER-EVALUATION.md), measured on 478 real users' ratings. A plausible-sounding change is not an improvement until `scripts/eval/run.sh` says so: the semantic-overview layer that looked obviously right turned out to be making the model *worse* than the plain content model it replaced. The harness asserts it is calling the shipping engine, so it tells you about the app rather than about a copy of it.
 - The project uses `PBXFileSystemSynchronizedRootGroup`, so files added on disk are picked up by the target automatically — no manual drag-into-Xcode step. Editing `project.pbxproj` is allowed when a build-level change genuinely requires it (e.g., the `EXCLUDED_SOURCE_FILE_NAMES = .gitkeep` rule that keeps empty-folder markers out of the app bundle).
 - ~~Do not modify `BingedApp.swift` or `ContentView.swift` until the UI phase.~~ **Spent — the UI phase was Phase 10.** `BingedApp` is now where the catalog, the recommender, the social stack and the sync engine are assembled, and it is edited routinely. What replaces the rule: it is a *wiring* file, so composition belongs there and logic does not. If something in it needs a test, it is in the wrong file. Concurrent sessions edit it often — re-read before editing rather than working from a copy in context.
 
@@ -122,6 +131,8 @@ Additive changes (a new optional property, a new `@Model` entity) lightweight-mi
 **Do not add a second `VersionedSchema` that lists the same live model types.** Two versions both naming `MediaItem.self` describe the same shape, compute the same version checksum, and `NSLightweightMigrationStage` throws when `from == to`. That throw happens inside `BingedApp.init()`, so the app aborts with SIGABRT before drawing a frame, and `StoreRecoveryView` cannot catch it — it guards `ModelContainer` creation, and this fails one line earlier. A real version needs a **frozen copy** of each changed model (a `MediaItemV1` `@Model` carrying the old property list), with only the newest version referring to the live type. That is worth paying the moment a build ships and not before. This crashed the app on 2026-08-23; the full write-up is in `Models/BingedSchema.swift`.
 
 **The unit suite cannot catch that class of bug.** No test calls `BingedApp.init()`, so the entire composition root — container, schema, service wiring — is unexercised by 539 green tests. After touching the schema or app startup, run the app or the full test plan, not `-testPlan BingedUnit`.
+
+**And the suite runs *inside* the app, which cuts the other way too.** The test host is `Binged.app`, so `BingedApp` boots for real during `xcodebuild test`. Until 2026-08-26 that meant every unit-test run signed in from the keychain, restored the account's library over the network, and called `sync.drain()` — upserting and deleting buckets in the **live** project. `BingedApp.isRunningTests` now gates `makeSocialStack` alongside the UI-test arguments, which were never passed to a unit run. Two rules follow: **anything added to `BingedApp` startup executes in every test run**, so it must be safe to run hundreds of times against no server; and a guard keyed on a launch argument only covers the invocation that passes it.
 
 ## Current scope
 

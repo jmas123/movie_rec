@@ -286,7 +286,22 @@ final class SyncEngine {
                     bucketSize: entry.kind == .ranked
                         ? library.bucket(for: item.sentiment ?? .liked, type: item.type).count
                         : nil,
-                    reviewExcerpt: nil
+                    // The author's own words, which used to be hardcoded `nil`
+                    // — so a review written in the app reached the server's
+                    // `ranked_items` row and never the feed, and the one part
+                    // of a post that is actually *writing* was the one part
+                    // followers could not read.
+                    //
+                    // Not sent for `wantToWatch`: a review of something you
+                    // have not watched is not a thing, and a stale one left
+                    // over from an earlier ranking would be worse.
+                    reviewExcerpt: entry.kind == .wantToWatch
+                        ? nil
+                        : FeedPost.excerpt(from: item.review),
+                    // Stored as TMDB's path rather than the rendered URL the
+                    // local row holds — same reason `ranked_items.poster_path`
+                    // does it, see `TMDBImage.posterPath`.
+                    posterPath: TMDBImage.posterPath(fromURL: item.posterURL)
                 )
             )
         }
@@ -430,6 +445,8 @@ final class SupabasePublishTransport: PublishTransport, @unchecked Sendable {
         let score: Double
         let rankInBucket: Int
         let bucketSize: Int
+        let posterPath: String?
+        let review: String?
 
         init(_ item: PublishedItem, userID: UUID) {
             self.userID = userID
@@ -441,6 +458,8 @@ final class SupabasePublishTransport: PublishTransport, @unchecked Sendable {
             score = item.score
             rankInBucket = item.rankInBucket
             bucketSize = item.bucketSize
+            posterPath = item.posterPath
+            review = item.review
         }
 
         enum CodingKeys: String, CodingKey {
@@ -453,6 +472,8 @@ final class SupabasePublishTransport: PublishTransport, @unchecked Sendable {
             case score
             case rankInBucket = "rank_in_bucket"
             case bucketSize = "bucket_size"
+            case posterPath = "poster_path"
+            case review
         }
     }
 }

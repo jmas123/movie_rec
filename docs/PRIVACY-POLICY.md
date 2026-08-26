@@ -1,7 +1,7 @@
 # Binged — Privacy Policy
 
 **Draft, unpublished.** `SupportLinks.privacyPolicy` points at
-`https://watchrank.app/privacy`, which does not exist. This file is the text to
+`https://binged.app/privacy`, which does not exist. This file is the text to
 publish there; App Store review will follow that link and a 404 is a rejection.
 
 **Last updated: 24 August 2026**
@@ -101,4 +101,4 @@ updating this page.
 ## Contact
 
 <!-- TODO: replace with a real, monitored address before publishing. -->
-`support@watchrank.app` is a placeholder and does not currently receive mail.
+`support@binged.app` is a placeholder and does not currently receive mail.

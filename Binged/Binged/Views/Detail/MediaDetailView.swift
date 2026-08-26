@@ -8,6 +8,22 @@
 //  flow presents `SentimentPicker`, then the comparison flow when the target
 //  bucket isn't empty.
 //
+//  It reads from two places, and the split is the thing to understand before
+//  editing it:
+//
+//  - **`MediaItem`** — the persisted row. Title, poster, overview, genres, and
+//    everything about the user's own relationship to it: watched, sentiment,
+//    rank, score, review. Always present, works offline, survives a reinstall.
+//  - **`TitleDetails`** — catalog trivia fetched fresh each time the screen
+//    opens: runtime, cast, director, streaming availability, the backdrop. Not
+//    persisted, not synced, and allowed to be absent. Every section built from
+//    it renders only if it arrived, so the screen is complete without it and
+//    richer with it.
+//
+//  A network failure therefore costs this screen its cast strip and nothing
+//  else. Nothing here awaits anything before drawing, and the ranking actions
+//  do not depend on the fetch having finished.
+//
 
 import SwiftUI
 import SwiftData
@@ -21,6 +37,10 @@ struct MediaDetailView: View {
     /// Optional: a build on the bundled catalog has no recommendation stack, so
     /// the predicted section simply does not appear.
     @Environment(RecommendationViewModel.self) private var recommender: RecommendationViewModel?
+
+    /// The catalog, for the detail fetch. Defaults to the bundled service, so a
+    /// preview or a stray push renders without it (`MediaServiceKey`).
+    @Environment(\.mediaService) private var service
 
     let item: MediaItem
 
@@ -50,21 +70,71 @@ struct MediaDetailView: View {
     /// loading, and stays `nil` when there is nothing honest to say.
     @State private var prediction: TitlePrediction?
 
+    /// Catalog trivia. `nil` while the fetch is in flight, when it failed, and
+    /// for a title the catalog knows nothing about — all three mean the same
+    /// thing to this screen, which is why they are one state.
+    @State private var details: TitleDetails?
+
+    /// Overviews run from one line to eight. Collapsed by default so the
+    /// user's own score stays on the first screenful, which is the thing this
+    /// app exists to show them.
+    @State private var isOverviewExpanded = false
+
+    /// Other people's rankings, for the "friends who watched" section. Optional
+    /// and environment-supplied: a build with no server simply has no section.
+    @Environment(\.rankingFeedService) private var rankingFeed
+    @State private var watchers = TitleWatchersViewModel()
+
     var body: some View {
         ScrollView {
+            // Two nested stacks because the header is full-bleed and the rest
+            // is inset: a single padded stack cannot run the backdrop to the
+            // screen edges, and padding every other section individually is
+            // the kind of thing that drifts one section at a time.
             VStack(spacing: Spacing.section) {
-                header
-                if item.watchedStatus == .watched {
-                    scoreSection
-                } else if let prediction {
-                    predictedSection(prediction)
+                TitleBackdropHeader(
+                    item: item,
+                    backdropURL: details?.backdropURL,
+                    subtitle: "\(String(item.year)) · \(item.type.displayName)",
+                    tagline: details?.tagline
+                )
+
+                VStack(spacing: Spacing.section) {
+                    if item.watchedStatus == .watched {
+                        scoreSection
+                    } else if let prediction {
+                        predictedSection(prediction)
+                    }
+                    if let details, TitleFactsRow.hasFacts(details, type: item.type) {
+                        TitleFactsRow(details: details, type: item.type)
+                    }
+                    if !item.overview.isEmpty { overviewSection }
+                    if !item.genres.isEmpty { genreSection }
+                    if let details, !details.streamingProviders.isEmpty {
+                        WatchProvidersRow(
+                            providers: details.streamingProviders,
+                            link: details.providerLink
+                        )
+                    }
+                    if let details, !details.cast.isEmpty {
+                        CastStrip(people: details.cast, title: "Cast", subtitle: creditLine)
+                    } else if let creditLine {
+                        // No cast came back but the director did — still worth
+                        // a line, and cheaper than an empty strip.
+                        Text(creditLine)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    if let review = item.review, !review.isEmpty { reviewSection(review) }
+                    // After your own take, before the buttons: this is context
+                    // for a decision, not an action you can perform.
+                    if watchers.hasContent { friendsSection }
+                    actionSection
                 }
-                if !item.overview.isEmpty { overviewSection }
-                if !item.genres.isEmpty { genreSection }
-                if let review = item.review, !review.isEmpty { reviewSection(review) }
-                actionSection
+                .padding(.horizontal, Spacing.lg)
+                .padding(.bottom, Spacing.lg)
             }
-            .padding()
         }
         .navigationTitle(item.title)
         .navigationBarTitleDisplayMode(.inline)
@@ -73,6 +143,25 @@ struct MediaDetailView: View {
         // be the exact confusion the outlined badge exists to prevent.
         .task(id: item.watchedStatus) {
             prediction = await recommender?.prediction(for: item)
+        }
+        // Keyed on the catalog id, not the item: the same title reached from
+        // Search and from the library is two `MediaItem` instances, and keying
+        // on identity would refetch on every one of them. An item with no
+        // external id has nothing to look up and simply never fetches.
+        .task(id: item.externalId) {
+            guard let externalId = item.externalId else { return }
+            details = await service.titleDetails(
+                id: externalId,
+                region: TitleDetails.deviceRegion
+            )
+        }
+        // Keyed the same way and for the same reason. Separate from the fetch
+        // above so a slow catalog does not hold up the friends section, or the
+        // reverse.
+        .task(id: item.externalId) {
+            await watchers.load(
+                from: rankingFeed, externalID: item.externalId, mediaType: item.type
+            )
         }
         .sheet(isPresented: $showSentimentSheet, onDismiss: presentCompareIfNeeded) {
             sentimentSheet
@@ -85,24 +174,23 @@ struct MediaDetailView: View {
         }
     }
 
-    // MARK: Header
+    // MARK: Credits
 
-    private var header: some View {
-        VStack(spacing: Spacing.lg) {
-            PosterView(title: item.title, posterURL: item.posterURL)
-                .frame(width: 160, height: 240)
-                .shadow(radius: 8, y: 4)
-
-            VStack(spacing: Spacing.xs) {
-                Text(item.title)
-                    .font(.title2.weight(.bold))
-                    .multilineTextAlignment(.center)
-                Text("\(String(item.year)) · \(item.type.displayName)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
+    /// "Directed by Bong Joon-ho", "Created by Vince Gilligan".
+    ///
+    /// The verb follows the media type because television credits its
+    /// showrunner rather than an episode director — calling that person the
+    /// director would be wrong on the one screen where it is stated outright.
+    private var creditLine: String? {
+        guard let names = details?.directors.map(\.name), !names.isEmpty else { return nil }
+        let verb = item.type == .movie ? "Directed by" : "Created by"
+        let joined: String
+        switch names.count {
+        case 1: joined = names[0]
+        case 2: joined = "\(names[0]) and \(names[1])"
+        default: joined = names.dropLast().joined(separator: ", ") + " and \(names[names.count - 1])"
         }
-        .frame(maxWidth: .infinity)
+        return "\(verb) \(joined)"
     }
 
     // MARK: Score
@@ -301,8 +389,29 @@ struct MediaDetailView: View {
             Text(item.overview)
                 .font(.body)
                 .foregroundStyle(.secondary)
+                .lineLimit(isOverviewExpanded ? nil : Self.collapsedOverviewLines)
+                .animation(.easeInOut(duration: 0.2), value: isOverviewExpanded)
+
+            if isOverviewTruncatable {
+                Button(isOverviewExpanded ? "Show less" : "Show more") {
+                    isOverviewExpanded.toggle()
+                }
+                .font(.footnote.weight(.semibold))
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Four lines is roughly where a TMDB synopsis stops being a hook and
+    /// starts being the second act.
+    private static let collapsedOverviewLines = 4
+
+    /// Measured in characters rather than by reading back the rendered line
+    /// count, which SwiftUI will not tell a view without a geometry dance for
+    /// the sake of hiding one button. The cost of being wrong is a "Show more"
+    /// that expands nothing, so the threshold is set well clear of four lines.
+    private var isOverviewTruncatable: Bool {
+        item.overview.count > 240
     }
 
     // MARK: Genres
@@ -334,6 +443,118 @@ struct MediaDetailView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: Friends
+
+    /// What the people you follow made of this title.
+    ///
+    /// Rendered only when there is something to say — `hasContent` gates it, so
+    /// no empty state, no spinner and no error box ever appears here. See
+    /// `TitleWatchersViewModel.Phase`.
+    private var friendsSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Friends Who Watched")
+                    .font(.headline)
+                if let subtitle = friendsSubtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            ForEach(watchers.watchers) { watcher in
+                friendRow(watcher)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var friendsSubtitle: String? {
+        let people = watchers.watchers.count
+        let reviews = watchers.reviewCount
+        guard reviews > 0 else { return nil }
+        return "\(people) ranked it · \(reviews) wrote about it"
+    }
+
+    private func friendRow(_ watcher: TitleWatcher) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(spacing: Spacing.md) {
+                PosterView(title: watcher.name, posterURL: watcher.avatarURL)
+                    .frame(width: 36, height: 36)
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(watcher.name)
+                        .font(.subheadline.weight(.semibold))
+                    Text("@\(watcher.handle)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: Spacing.sm)
+
+                verdict(for: watcher)
+            }
+
+            if let review = watcher.review, watcher.hasReview {
+                Text(review)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(Spacing.md)
+        .background(
+            Color(.secondarySystemBackground),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel(for: watcher))
+    }
+
+    /// Their number, or their position when the number has not been earned.
+    ///
+    /// `displayScore` applies the same bucket threshold their own device does,
+    /// so a friend never appears here wearing a precision the app refuses to
+    /// show them. With neither, the sentiment alone is still an answer.
+    @ViewBuilder
+    private func verdict(for watcher: TitleWatcher) -> some View {
+        if let score = watcher.displayScore {
+            Text(Self.formattedScore(score))
+                .font(.title3.weight(.semibold).monospacedDigit())
+        } else if let position = watcher.positionDescription {
+            Text(position)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing)
+        } else {
+            Text(watcher.sentiment.displayName)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// One decimal place, via the same formatter the rest of the app uses, so a
+    /// friend's number is written exactly like your own.
+    private static func formattedScore(_ score: Double) -> String {
+        ScoreDisplay.formatter.string(from: score as NSNumber) ?? "—"
+    }
+
+    private func accessibilityLabel(for watcher: TitleWatcher) -> String {
+        var parts = ["\(watcher.name), @\(watcher.handle)"]
+        if let score = watcher.displayScore {
+            parts.append("scored \(Self.formattedScore(score)) out of 10")
+        } else if let position = watcher.positionDescription {
+            parts.append(position)
+        } else {
+            parts.append(watcher.sentiment.displayName)
+        }
+        if let review = watcher.review, watcher.hasReview {
+            parts.append("wrote: \(review)")
+        }
+        return parts.joined(separator: ", ")
     }
 
     // MARK: Actions
@@ -423,6 +644,9 @@ struct MediaDetailView: View {
     private var markWatchedButton: some View {
         Button {
             draftSentiment = item.sentiment
+            // Seeded, so re-opening the sheet does not silently discard a
+            // review the user has already written.
+            reviewDraft = item.review ?? ""
             showSentimentSheet = true
         } label: {
             Label("Mark Watched", systemImage: "checkmark.circle.fill")
@@ -458,6 +682,7 @@ struct MediaDetailView: View {
     private var reRankButton: some View {
         Button {
             draftSentiment = item.sentiment
+            reviewDraft = item.review ?? ""
             showSentimentSheet = true
         } label: {
             Label("Change Rating", systemImage: "arrow.up.arrow.down")
@@ -469,15 +694,56 @@ struct MediaDetailView: View {
 
     // MARK: Sentiment sheet
 
+    /// Sentiment first, then — optionally — the review, in one sheet.
+    ///
+    /// **Why the review belongs here and not only after.** The old flow was
+    /// sentiment → comparisons → back to Detail → Add a Review, which asks
+    /// somebody to write down what they thought several taps *after* the app
+    /// stopped asking them about it. What they want to say is loudest the
+    /// moment they pick "Liked it"; by the end of four comparisons it has
+    /// cooled into a chore, and the review sheet on Detail was easy never to
+    /// find at all.
+    ///
+    /// It stays optional and stays below the picker: sentiment is what the
+    /// ranking needs and a required text field would be a toll on the one
+    /// interaction the whole app is built around. "Rank it" is enabled by the
+    /// sentiment alone, exactly as before.
     private var sentimentSheet: some View {
         NavigationStack {
-            VStack(spacing: Spacing.lg) {
-                SentimentPicker(selection: $draftSentiment)
-                Spacer(minLength: 0)
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.section) {
+                    SentimentPicker(selection: $draftSentiment)
+
+                    VStack(alignment: .leading, spacing: Spacing.sm) {
+                        Text("Add a review")
+                            .font(.headline)
+                        Text("Optional. Your followers see this alongside the ranking.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+
+                        // `axis: .vertical` rather than a `TextEditor`: an
+                        // editor is a fixed-height box that looks like a form
+                        // field you must fill, while this grows from one line
+                        // and reads as an invitation.
+                        TextField(
+                            "What did you think?",
+                            text: $reviewDraft,
+                            axis: .vertical
+                        )
+                        .lineLimit(3...8)
+                        .textFieldStyle(.plain)
+                        .padding(Spacing.md)
+                        .background(
+                            Color(.secondarySystemBackground),
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        )
+                    }
+                }
+                .padding()
             }
-            .padding()
             .navigationTitle("How was it?")
             .navigationBarTitleDisplayMode(.inline)
+            .scrollDismissesKeyboard(.interactively)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
@@ -491,11 +757,26 @@ struct MediaDetailView: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        // `.large` as well as `.medium`, because the keyboard over a medium
+        // sheet leaves the text field with almost nothing to stand in.
+        .presentationDetents([.medium, .large])
     }
 
     private func confirmSentiment() {
         guard let sentiment = draftSentiment else { return }
+
+        // **The review is written first, and the order is load-bearing.**
+        // `markWatched` queues the feed post, and `SyncEngine` builds that
+        // post's payload from the item as it stands. Saving the review
+        // afterwards would still reach the server's `ranked_items` row, but the
+        // post could already have been drained without it — the follower would
+        // see the ranking and never the sentence.
+        //
+        // Writing it here is also why this costs no *extra* post: the title is
+        // not `.watched` yet, so `updateReview` stays quiet and the `.ranked`
+        // post carries the text.
+        library.updateReview(item, to: reviewDraft)
+
         library.markWatched(item, sentiment: sentiment)
         // A pending comparison means the bucket wasn't empty; show it once the
         // sentiment sheet has fully dismissed (SwiftUI can't swap two sheets

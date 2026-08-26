@@ -27,12 +27,16 @@ struct TitlePrediction: Sendable {
     /// Whether the full feature set was fetched, or the estimate rests on the
     /// genres and era alone.
     ///
-    /// Not shown to the user, but it is the difference between a prediction
-    /// worth a number and one worth a band — and it makes the two cases
-    /// distinguishable when a prediction looks wrong.
+    /// Not shown to the user, but useful when diagnosing an estimate that rests
+    /// only on the genres and era available from search.
     let isEnriched: Bool
 
     var display: PredictionDisplay {
-        PredictionDisplay(predicted: predicted, lift: lift)
+        // Reaching this type already means the cold-start and per-type evidence
+        // floors passed. Always label the value as predicted, but do not hide it
+        // behind the old feature-support heuristic: offline evaluation found
+        // that heuristic did not order errors, so it was suppressing numbers
+        // without identifying safer guesses.
+        PredictionDisplay(predicted: predicted, lift: lift, floor: 0)
     }
 }

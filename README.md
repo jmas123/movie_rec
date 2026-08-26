@@ -17,8 +17,8 @@ See [`docs/ROADMAP.md`](./docs/ROADMAP.md) for per-phase status and [`docs/PART-
 ## Prerequisites
 
 - macOS with **Xcode 15+**
-- **iOS 17 simulator** (Xcode → Settings → Platforms)
-- Swift 5.9+ (bundled with Xcode 15)
+- **iOS 17.0+ deployment target**; QA runs on iPhone 16, iOS 18.3
+- Xcode 16 toolchain, Swift 5 language mode
 
 No package manager, no `pod install`, no `swift package resolve` — the project has zero third-party dependencies.
 

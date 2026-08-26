@@ -92,6 +92,8 @@ final class SupabaseLibraryRestoreService: LibraryRestoreService, @unchecked Sen
         let year: Int?
         let rankInBucket: Int?
         let updatedAt: Date
+        let posterPath: String?
+        let review: String?
 
         enum CodingKeys: String, CodingKey {
             case externalId = "external_id"
@@ -101,6 +103,8 @@ final class SupabaseLibraryRestoreService: LibraryRestoreService, @unchecked Sen
             case year
             case rankInBucket = "rank_in_bucket"
             case updatedAt = "updated_at"
+            case posterPath = "poster_path"
+            case review
         }
 
         var asRemoteRankedItem: RemoteRankedItem? {
@@ -122,7 +126,9 @@ final class SupabaseLibraryRestoreService: LibraryRestoreService, @unchecked Sen
                 title: title,
                 year: year ?? 0,
                 rankInBucket: rankInBucket,
-                updatedAt: updatedAt
+                updatedAt: updatedAt,
+                posterPath: posterPath,
+                review: review
             )
         }
     }

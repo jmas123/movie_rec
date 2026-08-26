@@ -43,7 +43,8 @@ struct LibraryMergeTests {
         type: MediaType = .movie,
         sentiment: Sentiment? = .liked,
         rank: Int? = 0,
-        updatedAt: Date = epoch
+        updatedAt: Date = epoch,
+        posterPath: String? = "/poster.jpg"
     ) -> RemoteRankedItem {
         .init(
             externalId: externalId,
@@ -52,7 +53,8 @@ struct LibraryMergeTests {
             title: "Title",
             year: 2020,
             rankInBucket: rank,
-            updatedAt: updatedAt
+            updatedAt: updatedAt,
+            posterPath: posterPath
         )
     }
 

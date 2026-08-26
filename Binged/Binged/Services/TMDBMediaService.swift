@@ -134,6 +134,26 @@ final class TMDBMediaService: MediaService, CandidateSource, @unchecked Sendable
         }
     }
 
+    /// The detail-screen payload, in one round trip.
+    ///
+    /// Failure is swallowed by contract (`MediaService.titleDetails`): the
+    /// screen this feeds already has everything it needs to be useful, so an
+    /// unreachable TMDB costs it a cast strip rather than an error banner. The
+    /// cache still applies underneath, which is what makes reopening a title
+    /// offline show the same page it showed online.
+    func titleDetails(id: String, region: String) async -> TitleDetails? {
+        guard let parsed = TMDBIdentifier.parse(id) else { return nil }
+        guard let url = TMDBEndpoint.detailForDisplay(
+            type: parsed.type, tmdbId: parsed.tmdbId
+        ) else { return nil }
+
+        let key = CatalogCacheKey.display(type: parsed.type, tmdbId: parsed.tmdbId)
+        guard let dto: TMDBDetailDTO = try? await get(url, cacheKey: key) else { return nil }
+
+        let details = dto.makeTitleDetails(type: parsed.type, region: region)
+        return details.isEmpty ? nil : details
+    }
+
     // MARK: - Candidate pool
 
     /// One page of one mood component.
@@ -208,6 +228,7 @@ final class TMDBMediaService: MediaService, CandidateSource, @unchecked Sendable
         return ExtractedFeatures(
             keys: dto.features(type: type, vocabulary: vocabulary).keys,
             voteAverage: dto.voteAverage,
+            voteCount: dto.voteCount,
             posterURL: TMDBImage.posterURL(path: dto.posterPath)
         )
     }
@@ -217,6 +238,19 @@ final class TMDBMediaService: MediaService, CandidateSource, @unchecked Sendable
     struct ExtractedFeatures: Sendable {
         let keys: [String]
         let voteAverage: Double?
+        let voteCount: Int?
+
+        init(
+            keys: [String],
+            voteAverage: Double?,
+            voteCount: Int? = nil,
+            posterURL: String? = nil
+        ) {
+            self.keys = keys
+            self.voteAverage = voteAverage
+            self.voteCount = voteCount
+            self.posterURL = posterURL
+        }
 
         /// Carried because this request already pays for it. A library built
         /// before artwork was displayed — or before the live catalogue existed
@@ -369,12 +403,14 @@ final class TMDBMediaService: MediaService, CandidateSource, @unchecked Sendable
     /// a stale cache entry, and retrying a rate-limited or failing endpoint in a
     /// loop is how a client turns one outage into several.
     private func fetch(_ url: URL) async throws -> Data {
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        // v4 bearer token: keeps the credential out of the URL, and therefore
-        // out of logs, metrics, and crash reports.
-        request.setValue("Bearer \(configuration.readToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        // `url` is always canonical TMDB. The configuration decides where the
+        // request actually goes and which credential authorises it — see
+        // `TMDBConfiguration.request(for:)`. Both change together or neither
+        // does, which is what stops a build sending TMDB's token to the proxy
+        // or the anon key to TMDB.
+        guard let request = configuration.request(for: url) else {
+            throw TMDBError.malformedURL
+        }
 
         let (data, response) = try await session.data(for: request)
 

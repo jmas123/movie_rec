@@ -2,7 +2,8 @@
 //  RatingCalibration.swift
 //  Binged
 //
-//  Maps the engine's raw estimate onto the user's own 0–10 rating scale.
+//  Maps the engine's raw estimate onto the user's own 0–10 rating scale, fitted
+//  separately for movies and television by `RecommendationViewModel`.
 //
 //  This replaces a quantile map from candidate rank, which was wrong in a way
 //  worth recording so nobody rebuilds it. That version took a candidate's

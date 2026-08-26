@@ -3,16 +3,13 @@
 //  Binged
 //
 //  One recommendation. Speaks `MediaRow`'s visual language — poster, title,
-//  year and type — with two things `MediaRow` has no concept of: a **predicted**
-//  badge, and a line saying why.
+//  year and type — with two things `MediaRow` has no concept of: a relative
+//  match label, and a line saying why.
 //
-//  The badge is deliberately not `MediaRow`'s filled score pill. A prediction
-//  and an earned score sit on the same 0–10 scale and mean very different
-//  things: one is derived from the user's own comparisons, the other is a guess
-//  about a title they have never seen. Rendering them identically would let the
-//  app borrow credibility the ranking system spent eighteen phases earning, so
-//  the predicted badge is outlined rather than filled and VoiceOver always says
-//  the word "predicted".
+//  Exact predicted numbers belong on the title detail. Repeating 8.1, 8.2 and
+//  8.2 down a browsing list makes ordinary regression-to-the-mean look like a
+//  broken ranking, and invites precision the model has not earned. Discover's
+//  job is relative choice: strongest match, a solid fit, or deliberate breadth.
 //
 
 import SwiftUI
@@ -22,11 +19,12 @@ import SwiftUI
 struct RecommendationRow: View {
 
     let recommendation: Recommendation
+    let placement: Int
     var onQueue: (() -> Void)?
     var onDismiss: (() -> Void)?
 
-    private var display: PredictionDisplay {
-        PredictionDisplay(predicted: recommendation.predicted, lift: recommendation.lift)
+    private var match: RecommendationMatch {
+        RecommendationMatch(recommendation: recommendation, placement: placement)
     }
 
     var body: some View {
@@ -59,7 +57,7 @@ struct RecommendationRow: View {
 
             Spacer(minLength: Spacing.sm)
 
-            PredictedBadge(display: display)
+            MatchBadge(match: match)
         }
         .padding(.vertical, Spacing.xs)
         .accessibilityElement(children: .combine)
@@ -110,43 +108,32 @@ struct RecommendationRow: View {
 
     private var accessibilityLabel: String {
         var label = "\(recommendation.item.title), \(String(recommendation.item.year)), "
-            + "\(recommendation.item.type.displayName), \(display.accessibilityDescription)"
+            + "\(recommendation.item.type.displayName), predicted \(match.label)"
         if let rationale { label += ". \(rationale)" }
         if recommendation.isQueued { label += ". Already in your list" }
         return label
     }
 }
 
-// MARK: - PredictedBadge
+// MARK: - MatchBadge
 
-/// The trailing badge. Outlined, never filled — see this file's header.
-private struct PredictedBadge: View {
+/// Relative language for browsing. The detail screen owns the precise number.
+private struct MatchBadge: View {
 
-    let display: PredictionDisplay
+    let match: RecommendationMatch
 
     /// The badge's floor width, scaled with the type inside it — a fixed 64pt
     /// would clip "Probably not for you" the moment the text grew.
     @ScaledMetric(relativeTo: .caption2) private var minimumWidth: CGFloat = 64
 
     var body: some View {
-        VStack(spacing: 2) {
-            switch display {
-            case .score(let value):
-                Text(ScoreDisplay.formatter.string(from: value as NSNumber) ?? "—")
-                    .font(.callout.weight(.bold).monospacedDigit())
-                Text("predicted")
-                    .font(.caption2.weight(.semibold))
-                    .textCase(.uppercase)
-                    .foregroundStyle(.secondary)
-
-            case .band(let band):
-                Image(systemName: band.symbolName)
-                    .font(.callout.weight(.semibold))
-                Text(band.label)
-                    .font(.caption2.weight(.semibold))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-            }
+        VStack(spacing: 3) {
+            Image(systemName: match.symbolName)
+                .font(.callout.weight(.semibold))
+            Text(match.label)
+                .font(.caption2.weight(.semibold))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
         }
         .foregroundStyle(Color.accentColor)
         .padding(.horizontal, Spacing.sm)
@@ -198,10 +185,10 @@ private func previewRecommendation(
     List {
         RecommendationRow(recommendation: previewRecommendation(
             title: "Sicario", confidence: 0.8, lift: 0.6
-        ))
+        ), placement: 0)
         RecommendationRow(recommendation: previewRecommendation(
             title: "Prisoners", confidence: 0.9, lift: 0.4, queued: true
-        ))
+        ), placement: 1)
     }
 }
 
@@ -209,13 +196,13 @@ private func previewRecommendation(
     List {
         RecommendationRow(recommendation: previewRecommendation(
             title: "Likely a hit", confidence: 0.1, lift: 0.5
-        ))
+        ), placement: 1)
         RecommendationRow(recommendation: previewRecommendation(
             title: "Worth a shot", confidence: 0.1, lift: 0.0
-        ))
+        ), placement: 2)
         RecommendationRow(recommendation: previewRecommendation(
             title: "Probably not", confidence: 0.1, lift: -0.5
-        ))
+        ), placement: 3)
     }
 }
 #endif
