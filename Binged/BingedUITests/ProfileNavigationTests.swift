@@ -222,6 +222,41 @@ final class ProfileNavigationTests: XCTestCase {
         )
     }
 
+    // MARK: - The two follow lists
+
+    /// Following and Followers must be two independent links.
+    ///
+    /// They were laid out side by side in one `List` row, which `List` routes
+    /// as a single target: tapping "Following" activated the "Followers" link
+    /// too and pushed both screens, so the list opened but one Back tap landed
+    /// on Followers instead of the profile. The first assertion below passes
+    /// even with the bug present — it is the Back tap that catches it.
+    @MainActor
+    func testFollowingAndFollowersAreIndependentLinks() throws {
+        let app = launch()
+        app.tabBars.buttons["Profile"].tap()
+
+        let following = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Following")
+        ).firstMatch
+        XCTAssertTrue(following.waitForExistence(timeout: timeout), "no following row to tap")
+        following.tap()
+
+        let list = app.navigationBars["Following"]
+        XCTAssertTrue(list.waitForExistence(timeout: timeout),
+                      "the following count did not open the following list")
+
+        list.buttons.firstMatch.tap()
+        XCTAssertFalse(
+            app.navigationBars["Followers"].waitForExistence(timeout: 3),
+            "back from Following landed on Followers — both links activated"
+        )
+        XCTAssertTrue(
+            app.navigationBars["Profile"].waitForExistence(timeout: timeout),
+            "back from Following did not return to the profile"
+        )
+    }
+
     // MARK: - Helpers
 
     @MainActor

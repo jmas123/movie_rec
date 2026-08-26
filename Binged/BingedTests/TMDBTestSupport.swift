@@ -455,3 +455,70 @@ enum TMDBFixtures {
     {"success":false,"status_code":34,"status_message":"The resource you requested could not be found."}
     """
 }
+
+// MARK: - Holding a response open
+
+/// A latch a stub handler can block on, so a test can decide when a request is
+/// allowed to finish.
+///
+/// Exists because `StubURLProtocol` answers synchronously: a round trip in
+/// these tests takes microseconds, which is far too fast to observe anything
+/// that is supposed to happen *while* a request is on the wire. Coalescing is
+/// the case — "these three callers shared one request" is only meaningful if
+/// the three genuinely overlap, and without a way to hold the first one open
+/// that overlap is a scheduling accident rather than a property under test.
+///
+/// It opens **once and stays open**: every waiter is released, not one per
+/// `open()`. A gate that freed a single waiter would deadlock exactly when the
+/// behaviour under test is broken — three uncoalesced requests would arrive,
+/// one would proceed, and the test would hang instead of reporting a failure.
+final class ResponseGate: @unchecked Sendable {
+
+    private let lock = NSLock()
+    private var isOpen = false
+    private let turnstile = DispatchSemaphore(value: 0)
+
+    /// Blocks the calling thread until `open()`. Safe to call from a
+    /// `URLProtocol` loading thread, which is not the main thread and is what
+    /// the stub handler runs on.
+    func wait() {
+        lock.lock()
+        let alreadyOpen = isOpen
+        lock.unlock()
+        guard !alreadyOpen else { return }
+
+        turnstile.wait()
+        // Pass the token on so the next waiter wakes too.
+        turnstile.signal()
+    }
+
+    func open() {
+        lock.lock()
+        isOpen = true
+        lock.unlock()
+        turnstile.signal()
+    }
+}
+
+/// Polls `condition` until it holds, or fails the test.
+///
+/// For the one thing a test genuinely cannot arrange deterministically:
+/// noticing that work started on another thread has reached a particular point.
+/// Everything else should be arranged rather than awaited.
+func waitUntil(
+    timeout: TimeInterval = 2,
+    interval: UInt64 = 2_000_000,
+    _ condition: @Sendable () -> Bool
+) async throws {
+    let deadline = Date().addingTimeInterval(timeout)
+    while !condition() {
+        if Date() >= deadline {
+            throw WaitTimeout()
+        }
+        try await Task.sleep(nanoseconds: interval)
+    }
+}
+
+struct WaitTimeout: Error, CustomStringConvertible {
+    var description: String { "waitUntil timed out" }
+}

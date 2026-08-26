@@ -545,6 +545,57 @@ Original list, retained:
 4. UI tests that visit the social surfaces. They currently cannot — `-uiTestingInMemoryStore` makes
    `makeSocialStack` return `nil`, so Part III is unreachable *from the tests by construction*.
 
+### New finding — 2026-08-26: every stranger's Follow button was dead
+
+Reported from a device, not found by the suite: searching for an account showed the row correctly
+with **Follow greyed out and unresponsive, permanently**, on both people-search surfaces.
+
+One line, in `UserSearchViewModel.seedStates`:
+
+```swift
+states[id] = found[id] ?? .none        // removes the key
+```
+
+`states` is `[UUID: FollowState]`, so the subscript setter takes `FollowState?`. That makes `?? .none`
+select the `T? ?? T? -> T?` overload, and `.none` binds to **`Optional.none`** — nil. Assigning nil to
+a dictionary subscript *deletes the entry*. So for anyone with no follow edge, the state was erased
+rather than recorded as "no relationship".
+
+`UserRow` renders `.disabled(!isStateKnown).opacity(isStateKnown ? 1 : 0.4)`, and `isStateKnown` is
+`states[id] != nil`. Erased state means the button is disabled for good.
+
+**The case it broke is the only case the screen exists for.** A user with no edge is exactly what a
+search for somebody new returns — so Follow worked for people you already followed or had requested,
+and never for anyone you might actually want to follow.
+
+**Why the tests missed it.** `UserSearchStateTests` (in `FollowIdempotencyTests.swift`) covers the
+states this rework was written to fix — already following, request pending. Both are cases where
+`found[id]` is non-nil, so the coalescing branch never runs. The bug lived entirely in the untested
+third case, which is the default one.
+
+**The compiler warned about it**: *"assuming you mean 'Optional<FollowState>.none'; did you mean
+'FollowState.none' instead?"* — and the warning was not treated as an error. That is the cheapest
+lesson here. This project builds with warnings non-fatal; this one was load-bearing.
+
+**Fixed** by spelling out `FollowState.none`. `UserSearchStateFailureTests.swift` covers the no-edge
+case, a failed read, and a redundant query write.
+
+**Two related weaknesses fixed alongside, neither of which was the cause** — recorded because the
+first was my initial hypothesis and the evidence refuted it:
+
+1. **A failed read left the button inert and silent.** `seedStates` swallowed errors with `try?` and
+   returned, which is indistinguishable from a read still in flight — except it never completes. It
+   now falls back to `FollowState.none`, sets `stateReadFailed`, and logs. Safe because `follow` is
+   idempotent server-side and returns the resulting state, so the first tap self-corrects.
+2. **`query`'s `didSet` fired on no-op assignments**, cancelling the in-flight search and re-arming
+   the debounce. Since `seedStates` runs after `results` is published inside that same task, a
+   `.searchable` write-back in that window would kill the state read. Now guarded on
+   `query != oldValue`. `SearchView.reset()` had already learned this at the call site
+   (`if people.query != "" { … }`), which is the right guard in the wrong place.
+
+   This was the hypothesis, and a test disproved it: with the guard in place the search ran exactly
+   once and the button was *still* dead. Worth keeping only because it is a real latent bug.
+
 ### New finding — 2026-08-26: the unit suite ran against the production project
 
 Not in the original audit, and it belongs to this section because it is the same class: the

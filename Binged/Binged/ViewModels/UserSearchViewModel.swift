@@ -19,7 +19,24 @@ final class UserSearchViewModel {
     }
 
     var query: String = "" {
-        didSet { scheduleSearch() }
+        didSet {
+            // **Only when it actually changed.** `didSet` fires on every
+            // assignment, and a `.searchable` binding writing the same string
+            // back is an assignment. Restarting on a no-op cancels the in-flight
+            // `searchTask` and re-arms the debounce — and because `seedStates`
+            // runs *after* `results` is published inside that same task, a
+            // write-back landing in that window kills the follow-state read
+            // before it can store anything. `isStateKnown` then stays false and
+            // every Follow button is disabled at 40% opacity, permanently,
+            // because each restart re-enters the same window. Reported from a
+            // device on 2026-08-26 as an account that looked "unselected".
+            //
+            // `SearchView.reset()` already guards its own writes this way
+            // (`if people.query != "" { … }`), which is the same lesson learned
+            // at the call site instead of here, where it belongs.
+            guard query != oldValue else { return }
+            scheduleSearch()
+        }
     }
 
     private(set) var phase: Phase = .prompt
@@ -28,6 +45,15 @@ final class UserSearchViewModel {
     /// Follow state per user, held here so a row can render optimistically
     /// without each one holding its own copy.
     private(set) var states: [UUID: FollowState] = [:]
+
+    /// Whether the last relationship read failed.
+    ///
+    /// Separate from `phase`, deliberately: the search itself succeeded and the
+    /// results are worth showing, so this must not take the screen over with an
+    /// error state. It exists so the failure is *knowable* — by a view that
+    /// wants to caption it, and by anyone reading a log — rather than showing up
+    /// only as buttons that behave oddly.
+    private(set) var stateReadFailed = false
 
     @ObservationIgnored private let service: SocialService
     @ObservationIgnored private var searchTask: Task<Void, Never>?
@@ -66,8 +92,15 @@ final class UserSearchViewModel {
             results = found
             phase = found.isEmpty ? .noResults : .results
             await seedStates(for: found)
+        } catch is CancellationError {
+            // A newer search superseded this one; the new task owns the states.
+            // Not a failure, and must not be recorded as one.
+            return
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else {
+                AppLog.network.debug("Follow-state read cancelled by a newer search.")
+                return
+            }
             phase = .error(ErrorMessage.text(for: error))
         }
     }
@@ -86,19 +119,59 @@ final class UserSearchViewModel {
     /// pending request that presents itself as un-sent invites the user to send
     /// it again and wonder why nothing happens.
     ///
-    /// A failure leaves the states alone rather than falling back to `.none`:
-    /// silence is better than a confident wrong answer, and the search results
-    /// themselves are still worth showing.
+    /// **A failed read must not be mistaken for a slow one.** This originally
+    /// returned early on failure, on the reasoning that silence beats a
+    /// confident wrong answer. That is right about the *state* and wrong about
+    /// the *button*: `isStateKnown` gates it, so leaving the states alone left
+    /// every row's Follow permanently disabled at 40% opacity, with nothing on
+    /// screen to say why and no way to retry. Reported from a device on
+    /// 2026-08-26 as an account that looked "unselected".
+    ///
+    /// So a failure now falls back to `.none` and records that it did. That is
+    /// safe in a way it was not when the original comment was written: `follow`
+    /// is idempotent server-side and *returns the resulting state*, so acting on
+    /// an unread relationship self-corrects on the first tap. The residual cost
+    /// is a pending request that offers Follow again — one wasted tap that
+    /// resolves itself — against a control that never works at all.
     private func seedStates(for people: [UserProfile]) async {
         let unknown = people.map(\.id).filter { states[$0] == nil }
         guard !unknown.isEmpty else { return }
 
-        guard let found = try? await service.followStates(for: unknown) else { return }
+        let found: [UUID: FollowState]
+        do {
+            found = try await service.followStates(for: unknown)
+            stateReadFailed = false
+        } catch {
+            guard !Task.isCancelled else { return }
+            // Swallowed by `try?` before, which is why this was invisible both
+            // to the user and to anyone reading a log.
+            AppLog.network.error(
+                "Follow-state read failed: \(ErrorMessage.text(for: error), privacy: .public)"
+            )
+            stateReadFailed = true
+            // `FollowState.none` spelled out, not `.none`. The subscript setter
+            // takes `FollowState?`, so a bare `.none` binds to `Optional.none`
+            // and *removes* the key — leaving `isStateKnown` false and the
+            // button disabled, which is the exact bug this is fixing. The line
+            // below survives it only because `??` forces the non-optional type.
+            for id in unknown { states[id] = FollowState.none }
+            return
+        }
         guard !Task.isCancelled else { return }
 
         for id in unknown {
             // Absent from the answer means no edge — see `followStates`.
-            states[id] = found[id] ?? .none
+            //
+            // **`FollowState.none`, spelled out.** The subscript setter takes
+            // `FollowState?`, so `?? .none` selects the `T? ?? T?` overload and
+            // yields `Optional.none` — which *removes* the key instead of
+            // storing "no edge". `isStateKnown` then reports false for exactly
+            // the people who have no relationship, which is everyone a search
+            // for somebody new returns, and their Follow button renders
+            // disabled at 40% opacity for good. The compiler warns about this
+            // ("assuming you mean 'Optional<FollowState>.none'") and the warning
+            // was not treated as an error.
+            states[id] = found[id] ?? FollowState.none
         }
     }
 

@@ -234,39 +234,45 @@ struct ProfileView: View {
         }
     }
 
-    /// The two counts, as pushes.
+    /// The two counts, as pushes — **one link per row**.
     ///
-    /// Both are links even at zero. An empty list that says "Nobody follows you
-    /// yet" is an answer; a number that stops being tappable when it reaches
-    /// zero reads as a control that has broken.
+    /// They used to sit side by side in a single row, and that is a row with
+    /// one link and a bug: `List` does not treat two `NavigationLink`s in one
+    /// row as two independent targets. Tapping "Following" activated the
+    /// "Followers" link as well and pushed both, so one Back tap left the
+    /// reader on the follower list — which reads as Following opening the wrong
+    /// screen. `UserProfileView` hit this first on somebody else's page; the
+    /// note in its `header` records that `.buttonStyle(.borderless)`, the usual
+    /// answer, was tried and stops the link activating at all. A row apiece is
+    /// the arrangement `List` routes unambiguously, so this is that shape.
+    ///
+    /// Both rows exist even at zero. An empty list that says "Nobody follows
+    /// you yet" is an answer; a row that stops being tappable when the count
+    /// reaches zero reads as a control that has broken.
     @ViewBuilder
     private func followCounts(for profile: UserProfile) -> some View {
         if socialService != nil {
-            HStack(spacing: 0) {
-                countLink(.followers, value: counts?.followers, subject: profile)
-                Divider().frame(height: 32)
-                countLink(.following, value: counts?.following, subject: profile)
-            }
+            countRow(.followers, value: counts?.followers, subject: profile)
+            countRow(.following, value: counts?.following, subject: profile)
         }
     }
 
-    private func countLink(
+    private func countRow(
         _ direction: FollowListView.Direction, value: Int?, subject: UserProfile
     ) -> some View {
         NavigationLink(value: FollowListRoute(direction: direction, subject: subject)) {
-            VStack(spacing: 2) {
+            HStack {
+                Text(direction.title)
+                Spacer(minLength: Spacing.md)
                 // An em dash until the count lands, so the row never claims a
                 // zero it has not actually been told.
                 Text(value.map(String.init) ?? "—")
-                    .font(.title3.weight(.semibold).monospacedDigit())
-                Text(direction.title)
-                    .font(.caption)
+                    .font(.callout.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(value.map(String.init) ?? "Unknown") \(direction.title)")
+        .accessibilityLabel("\(direction.title), \(value.map(String.init) ?? "unknown")")
+        .accessibilityHint("Opens the list")
     }
 
     private func loadCounts() async {

@@ -418,11 +418,22 @@ struct TMDBNetworkMannersTests {
         // Building a cold pool asks for overlapping pages within milliseconds.
         // Without coalescing every caller is a separate request against a
         // rate-limited API.
+        //
+        // **The stub answers synchronously and `TMDBMediaService` is not actor
+        // isolated**, so "start three calls and hope they overlap" is a race in
+        // the *test*: the first can finish, and drop out of the in-flight
+        // table, before the other two callers reach it. Three sequential
+        // requests then look like broken coalescing, which is how this failed
+        // on a loaded machine while passing everywhere else. So the response is
+        // held open until all three callers are provably outstanding, and the
+        // overlap the assertion is about becomes a fact rather than a hope.
+        let gate = ResponseGate()
         let log = RequestLog()
         let service = makeTMDBService(log: log, cache: makeDisabledCache()) { request in
             guard request.url?.path.hasSuffix("/discover/movie") == true else {
                 return .status(404, Data(TMDBFixtures.notFound.utf8))
             }
+            gate.wait()
             return .ok(Data(TMDBFixtures.discoverMovies.utf8))
         }
 
@@ -431,8 +442,22 @@ struct TMDBNetworkMannersTests {
         )
 
         async let a = service.discover(type: .movie, component: component, page: 1)
+
+        // The first request reaching the stub is the signal that its entry is
+        // in the in-flight table — and it cannot leave while it is blocked on
+        // the gate, so every later caller must find it there.
+        try await waitUntil { log.count(inQuery: "with_genres") >= 1 }
+
         async let b = service.discover(type: .movie, component: component, page: 1)
         async let c = service.discover(type: .movie, component: component, page: 1)
+
+        // Long enough for two calls that do no I/O to reach the in-flight
+        // table, and the only timing left in the test. If they somehow have
+        // not, the gate still opens and the count below reports the truth
+        // instead of hanging.
+        try await Task.sleep(nanoseconds: 50_000_000)
+        gate.open()
+
         let results = try await [a, b, c]
 
         #expect(results.allSatisfy { !$0.isEmpty } == true)
