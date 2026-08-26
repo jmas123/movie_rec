@@ -18,6 +18,14 @@
 
 #include? "Secrets.xcconfig"
 
+// A developer may keep TMDB_READ_TOKEN in the gitignored Secrets.xcconfig for
+// direct local debugging, but no archive may inherit it. The distributed app
+// uses the deployed `tmdb-proxy` Edge Function through SUPABASE_URL and the
+// public anon key instead. Keep this override after the include: xcconfig uses
+// the last matching assignment, so Release is empty even when the local secret
+// file contains a token.
+TMDB_READ_TOKEN[config=Release] =
+
 // MARK: - Version
 //
 // Kept here rather than in project.pbxproj, where these two lived duplicated
@@ -30,7 +38,7 @@
 // uploaded to TestFlight under the same marketing version — bump it on every
 // upload, and reset it to 1 when MARKETING_VERSION changes.
 MARKETING_VERSION = 2.0
-CURRENT_PROJECT_VERSION = 1
+CURRENT_PROJECT_VERSION = 2
 
 // Surfaces the token to the app through the Info.plist, where
 // TMDBConfiguration reads it back at runtime.

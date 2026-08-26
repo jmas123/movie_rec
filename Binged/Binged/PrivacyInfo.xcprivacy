@@ -95,7 +95,31 @@
             </array>
         </dict>
 
-        <!-- Published rankings, reviews and comments. -->
+        <!-- The ranked library, reviews and comments.
+
+             NOT only the *published* part, which is what this comment said
+             until 2026-08-26 and what Part III made true. Part IV syncs every
+             watched, ranked item with an externalId the moment a user is
+             signed in, published or not, because that is what restores a
+             library onto a second device. `is_published` decides who else may
+             read a row; it has never decided whether the row is transmitted.
+             Wording that conflates the two is the exact failure CLAUDE.md
+             warns about, and it is worse here than in a design doc.
+
+             Two purposes, not one. App Functionality is the sync and the feed.
+             Product Personalization is `TasteMatch`: it reads another
+             account's published rankings from the server and turns them into
+             "what should I watch next" on their profile. The maths runs
+             on-device, which changes where the work happens and not what the
+             collected data is used for. Declared to App Store Connect the same
+             way on 2026-08-26.
+
+             Still absent, and each would be a new purpose here the day it
+             ships: server-side recommendations, a social recommender
+             ("people you follow also liked this"), and any analytics at all.
+             The Discover recommender needs none of them — it runs on the local
+             library plus TMDB's public vote average and reads nothing from
+             Supabase. -->
         <dict>
             <key>NSPrivacyCollectedDataType</key>
             <string>NSPrivacyCollectedDataTypeOtherUserContent</string>
@@ -106,6 +130,7 @@
             <key>NSPrivacyCollectedDataTypePurposes</key>
             <array>
                 <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+                <string>NSPrivacyCollectedDataTypePurposeProductPersonalization</string>
             </array>
         </dict>
     </array>

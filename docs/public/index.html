@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Binged</title>
+<meta name="description" content="Rank what you watch by comparing it to what you have already seen.">
+<!--
+  Served at https://trybinged.com/.
+
+  Exists so the bare domain is not a 404. App Store Connect's marketing-URL
+  field and anyone typing the domain by hand both land here, and a 404 on the
+  root of a domain whose /privacy a reviewer is about to read looks like a
+  site that is half up.
+
+  Deliberately makes no claim the app is available. When it ships, add the
+  store badge here and nowhere else.
+-->
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #5a5a5a;
+    --rule: #e2e2e2;
+    --accent: #6c40e0;
+    --card: #f7f6fb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131316;
+      --fg: #ececf1;
+      --muted: #a2a2ad;
+      --rule: #2c2c33;
+      --accent: #a98bff;
+      --card: #1b1b21;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 17px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    display: flex; min-height: 100vh;
+  }
+  main { max-width: 34rem; margin: auto; padding: 3rem 1.25rem; }
+  h1 { font-size: 2.6rem; line-height: 1.1; margin: 0 0 .75rem; letter-spacing: -.03em; }
+  .lede { font-size: 1.2rem; color: var(--fg); margin: 0 0 1.5rem; }
+  p { margin: 1rem 0; }
+  .muted { color: var(--muted); }
+  ol { padding-left: 1.3rem; margin: 1.25rem 0; }
+  li { margin: .5rem 0; }
+  .card { background: var(--card); border-radius: 14px; padding: 1.25rem 1.4rem; margin: 2rem 0; }
+  .card p:first-child { margin-top: 0; }
+  .card p:last-child { margin-bottom: 0; }
+  a { color: var(--accent); }
+  footer {
+    margin-top: 2.5rem; padding-top: 1.25rem; border-top: 1px solid var(--rule);
+    color: var(--muted); font-size: .95rem;
+  }
+  footer a { margin-right: 1rem; }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>Binged</h1>
+  <p class="lede">Rank what you watch by comparing it to what you have already
+  seen.</p>
+
+  <p>Nobody knows what they mean by “7.5 out of 10”. Everybody knows which of
+  two films they would rather watch again. Binged only ever asks the second
+  question.</p>
+
+  <ol>
+    <li>Mark something watched, and say whether you liked it, it was fine, or you
+      didn’t.</li>
+    <li>The app asks which of two titles you preferred — a handful of times, never
+      more than it needs.</li>
+    <li>A 0–10 score falls out of where that lands it. You never type a number,
+      because the number is the answer, not the question.</li>
+  </ol>
+
+  <div class="card">
+    <p><strong>Coming to iPhone.</strong> Films and series are ranked separately,
+    so each gets its own number one.</p>
+  </div>
+
+  <p class="muted">Works fully without an account, and signed out nothing leaves
+  your phone. An account saves your library so it follows you to a new device —
+  which is a backup, not a broadcast. Sharing is a separate switch and it is off
+  until you turn it on.</p>
+
+  <footer>
+    <a href="/privacy">Privacy</a>
+    <a href="/support">Support</a>
+    <a href="mailto:support@trybinged.com">support@trybinged.com</a>
+  </footer>
+
+</main>
+</body>
+</html>

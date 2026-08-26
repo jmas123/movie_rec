@@ -173,9 +173,9 @@ struct FeedStarterView: View {
     /// The other half of the bootstrap.
     ///
     /// Shares text rather than a link on purpose: there is no public web
-    /// profile to point at — `binged.app` is not a registered domain
-    /// (`SupportLinks`) — and a share sheet offering a URL that resolves to
-    /// nothing is worse than one that plainly says "look me up under this
+    /// profile to point at — `trybinged.com` (`SupportLinks`) serves a privacy
+    /// policy and nothing else — and a share sheet offering a URL that resolves
+    /// to nothing is worse than one that plainly says "look me up under this
     /// name". If a profile page ever exists, this is the one place to change.
     @ViewBuilder
     private var inviteLink: some View {

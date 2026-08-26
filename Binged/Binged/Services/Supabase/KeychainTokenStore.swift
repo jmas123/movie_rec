@@ -46,7 +46,13 @@ final class KeychainTokenStore: TokenStore, @unchecked Sendable {
     private let account: String
     private let lock = NSLock()
 
-    init(service: String = "com.watchrank.supabase", account: String = "session") {
+    /// The default service was `com.watchrank.supabase` until 2026-08-26 — the
+    /// brand two renames ago, and the same stale identifier the bundle id
+    /// carried. Changing it orphans any token stored under the old name, so the
+    /// next launch reads no session and the user signs in again. That is free
+    /// today and would not have been after a TestFlight build: the same edit
+    /// against shipped installs signs every tester out with no explanation.
+    init(service: String = "com.trybinged.supabase", account: String = "session") {
         self.service = service
         self.account = account
     }

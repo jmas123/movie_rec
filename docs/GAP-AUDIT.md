@@ -88,6 +88,14 @@ All seven verified in the built product, not just in source. Unit suite green at
    changes nothing about the blocker**: the domain is still unregistered and the policy still
    unpublished. It means the registration, when it happens, has one file to touch.
 
+   **Closed 2026-08-26**, and tracked from here on in
+   [`TESTFLIGHT-CHECKLIST.md`](./TESTFLIGHT-CHECKLIST.md) §A rather than in this audit:
+   `PRODUCT_BUNDLE_IDENTIFIER` is now `com.trybinged.Binged` (`.tests`, `.uitests`) in all six
+   configurations, and `KeychainTokenStore`'s default service went with it —
+   `com.watchrank.supabase` → `com.trybinged.supabase`, which is the same stale brand in the one
+   place that survives a relaunch. Unit plan green at 745. The finding as originally written
+   follows, unedited:
+
    Related and still open, deliberately left alone: `PRODUCT_BUNDLE_IDENTIFIER` is `Jude.WatchRank`
    in all six configurations. Invisible to users and harmless today, but it is the app's permanent
    identity in App Store Connect and cannot be changed after the first upload — so it is a decision

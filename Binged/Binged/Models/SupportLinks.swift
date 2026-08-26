@@ -11,12 +11,19 @@
 //  crash on the Settings screen. Here they resolve or they don't, and a link
 //  that does not resolve is simply not drawn.
 //
-//  ⚠️ **`binged.app` is not registered.** `supportEmail` and `privacyPolicy`
-//  point at a domain nobody owns, so both resolve to a URL that goes nowhere —
-//  a *valid* URL, which is why this type cannot detect the problem for you.
-//  App Review follows the privacy-policy link; it must be live before
-//  submission, and `docs/PRIVACY-POLICY.md` is the text waiting to be put
-//  there.
+//  ⚠️ **`trybinged.com` is chosen but not yet registered or hosted.** Both
+//  links resolve to a domain that serves nothing yet — a *valid* URL, which is
+//  why this type cannot detect the problem for you: `URL(string:)` succeeds on
+//  any well-formed string, so a dead domain still draws a live-looking link.
+//  App Review follows the privacy-policy link; it must return 200 before
+//  submission. `docs/public/privacy/index.html` is the page and
+//  `TESTFLIGHT-CHECKLIST.md` §A is the registration runbook.
+//
+//  **Not `binged.app`, and not by accident.** That domain is registered and
+//  live: it serves another company's product, "Binged. — Handpicked
+//  recommendations", in this app's own category (checked 2026-08-26). Do not
+//  "correct" these literals back to it. The name collision itself is an open
+//  question in `docs/COMPETITIVE-LANDSCAPE.md`.
 //
 //  These said `watchrank.app` until 2026-08-25 — two product renames after the
 //  product stopped being called that. The mechanical WatchRank → Binge → Binged
@@ -37,9 +44,9 @@ enum SupportLinks {
     /// licence agreement, and the one link here that is real and permanent.
     static let termsOfUse = url("https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")
 
-    static let privacyPolicy = url("https://binged.app/privacy")
+    static let privacyPolicy = url("https://trybinged.com/privacy")
 
-    static let supportEmail = url("mailto:support@binged.app")
+    static let supportEmail = url("mailto:support@trybinged.com")
 
     /// Every link that resolved, for callers that want to know whether there is
     /// anything to show at all.

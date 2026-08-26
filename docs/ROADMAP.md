@@ -1629,8 +1629,21 @@ bearer token.
 
 ### Acceptance criteria
 
-- A release build contains no TMDB token — grep the built `.app`, as Phase 12
-  did for the opposite reason.
+- A release build contains no TMDB token — `tools/verify-release-bundle.sh
+  <archive>` reports `TMDBReadToken is empty`.
+
+  **Corrected 2026-08-26. This criterion previously read "grep the built `.app`,
+  as Phase 12 did for the opposite reason", and as written it could not fail.**
+  The built `Info.plist` is a binary plist, BSD grep classifies it as a binary
+  file, and `grep -rl "$TOKEN" Binged.app` therefore prints nothing and exits 1
+  on a bundle that contains the token in plaintext — indistinguishable from a
+  clean result. `grep -ral` finds it immediately. Verified both ways on the same
+  bundle before rewriting this line.
+
+  Phase 12 grepped for the token and *found* it, which is why nobody noticed:
+  the check only ever ran in the direction where a false negative is impossible.
+  Inverting a verification's expected answer does not carry its reliability
+  across — a command that proves presence has not been shown to prove absence.
 - Search, detail, discover, genre lists and the id migration all work against
   the proxy.
 - With the proxy unreachable, the app degrades to the cached pool rather than

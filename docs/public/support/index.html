@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Binged — Support</title>
+<!--
+  Served at https://trybinged.com/support.
+
+  This page exists because App Store Connect has a *required* Support URL field
+  that is separate from the privacy-policy field, and it will not accept a
+  mailto: link. A page that only says "email us" satisfies it; a missing one is
+  a metadata rejection before review even starts.
+
+  Same rule as the privacy page: docs/public/ is the only part of docs/ that is
+  safe to serve. Everything else in docs/ is internal.
+-->
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #5a5a5a;
+    --rule: #e2e2e2;
+    --accent: #6c40e0;
+    --card: #f7f6fb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131316;
+      --fg: #ececf1;
+      --muted: #a2a2ad;
+      --rule: #2c2c33;
+      --accent: #a98bff;
+      --card: #1b1b21;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 17px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  main { max-width: 40rem; margin: 0 auto; padding: 3rem 1.25rem 4rem; }
+  h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 .35rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.15rem; margin: 2.25rem 0 .6rem; letter-spacing: -.01em; }
+  .updated { color: var(--muted); font-size: .95rem; margin: 0 0 2rem; }
+  ul { padding-left: 1.25rem; }
+  li { margin: .45rem 0; }
+  a { color: var(--accent); }
+  .card {
+    background: var(--card); border-radius: 12px; padding: 1.1rem 1.25rem; margin: 1.5rem 0;
+  }
+  .card p:first-child { margin-top: 0; }
+  .card p:last-child { margin-bottom: 0; }
+  footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: .95rem; }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>Binged — Support</h1>
+  <p class="updated">Rank what you watch, by comparing it to what you already have.</p>
+
+  <div class="card">
+    <p><strong>Email <a href="mailto:support@trybinged.com">support@trybinged.com</a></strong>
+    and a person will read it. Tell us which iPhone and which iOS version if
+    something is broken — it saves a round trip.</p>
+  </div>
+
+  <h2>The things people ask first</h2>
+  <ul>
+    <li><strong>Why can't I type a score?</strong> You don't rate in Binged, you
+      compare. Mark something watched, say whether you liked it, and the app asks
+      which of two titles you preferred a handful of times. The 0–10 number comes
+      out of where that lands it — which is why it means something.</li>
+    <li><strong>Where is my score?</strong> A number derived from one or two
+      comparisons would be a guess with a decimal point on it, so until a bucket
+      holds five titles the app shows your position instead, and tells you how
+      many more it needs.</li>
+    <li><strong>Do I need an account?</strong> No. Everything — search, ranking,
+      recommendations — works signed out, and signed out nothing leaves your
+      phone. An account saves your library so it follows you to a new device.</li>
+    <li><strong>Who can see my rankings?</strong> Nobody, until you turn sharing
+      on. Saving and sharing are separate switches; the
+      <a href="/privacy">privacy policy</a> spells out which is which.</li>
+    <li><strong>Delete my account?</strong> Email the address above and we remove
+      the account and everything attached to it.</li>
+  </ul>
+
+  <h2>Reporting someone</h2>
+  <p>Comments and profiles can be reported from inside the app, and you can block
+  an account from its profile. Reports are reviewed and acted on within 24 hours.
+  If something needs faster attention, email us and say so in the subject line.</p>
+
+  <footer>Binged — <a href="/privacy">Privacy policy</a></footer>
+
+</main>
+</body>
+</html>

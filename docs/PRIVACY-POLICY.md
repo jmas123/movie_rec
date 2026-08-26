@@ -1,8 +1,10 @@
 # Binged — Privacy Policy
 
-**Draft, unpublished.** `SupportLinks.privacyPolicy` points at
-`https://binged.app/privacy`, which does not exist. This file is the text to
-publish there; App Store review will follow that link and a 404 is a rejection.
+**Unpublished.** `SupportLinks.privacyPolicy` points at
+`https://trybinged.com/privacy`. The page to serve there is
+`docs/public/privacy/index.html` — this file is the same text in Markdown, kept
+for review; edit both or neither. App Store review follows that link and a 404
+is a rejection.
 
 **Last updated: 24 August 2026**
 
@@ -100,5 +102,6 @@ updating this page.
 
 ## Contact
 
-<!-- TODO: replace with a real, monitored address before publishing. -->
-`support@binged.app` is a placeholder and does not currently receive mail.
+`support@trybinged.com`, forwarded to a monitored mailbox by Cloudflare Email
+Routing. Guideline 1.2 requires this to be reachable for an app carrying
+user-generated content, and a reviewer will test it.

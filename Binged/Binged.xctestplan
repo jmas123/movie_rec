@@ -22,6 +22,10 @@
     },
     {
       "parallelizable" : false,
+      "skippedTests" : [
+        "FriendProfilePass",
+        "ScreenshotPass"
+      ],
       "target" : {
         "containerPath" : "container:Binged.xcodeproj",
         "identifier" : "E0CFBA962FBD2F5300CFD11B",

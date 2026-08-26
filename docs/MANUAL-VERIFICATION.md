@@ -6,6 +6,10 @@ they are not scattered across commit messages and roadmap notes.
 **Status key:** 🔴 blocks a phase · 🟡 should be checked before shipping ·
 🟢 nice to confirm
 
+> **Shipping specifically?** [`TESTFLIGHT-CHECKLIST.md`](./TESTFLIGHT-CHECKLIST.md) collects the
+> subset of this queue that stands between the working tree and a TestFlight build, ordered by
+> what blocks what. §§6, 7 and 9 below are folded into it.
+
 Last updated 2026-08-21.
 
 ---
@@ -78,6 +82,15 @@ thing someone wrote.
 
 Still not deployed:
 
+- **`20260826010000_content_filter.sql`** — the UGC term filter (App Store 1.2's
+  fourth requirement; see `docs/APP-STORE-CONNECT-RECORD.md` §4). Written and
+  verified against a local `db reset` on 2026-08-26: 18 pgTAP assertions in
+  `supabase/tests/content_filter_test.sql`, with `rls_test` (42) and
+  `comment_editing_test` (10) still green beside it. **Local Postgres is 15.x
+  and the project is 17.x, so that is strong evidence and not proof.**
+- `20260826000000_title_watchers.sql` — added the same day by another session;
+  listed here because it is newer than the push that made §7's "all ten applied"
+  true, not because anything is known to be wrong with it.
 - `supabase/functions/tmdb-proxy/` — the TMDB credential proxy. Phase 35: deploy
   it, `supabase secrets set TMDB_READ_TOKEN=…`, then remove the token from the
   release build and **rotate it**. Until the function is live every build falls
@@ -94,8 +107,8 @@ it cannot be tested from here.
 Phase 28 step 2 asks for EULA acceptance at signup. The links are in Settings
 (Apple's standard EULA and a privacy-policy URL) but the sign-up form does not
 require a tick. Add the checkbox before submitting to review, and put a real
-privacy policy at the URL — `https://binged.app/privacy` currently points at
-nothing.
+privacy policy at the URL — `https://trybinged.com/privacy` is where
+`SupportLinks` now points, and nothing is served there yet.
 
 ### 9. App Store privacy labels
 

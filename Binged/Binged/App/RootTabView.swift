@@ -36,6 +36,11 @@ struct RootTabView: View {
     /// Handed to `HomeTabView`, which owns the stack a profile is pushed onto.
     var rankingFeedService: RankingFeedService?
 
+    /// Test-only escape hatch supplied by `BingedApp`. The welcome sheet is
+    /// itself covered by screenshots and should not obscure unrelated
+    /// navigation tests on a newly created simulator.
+    var suppressWelcome = false
+
     @State private var selection: Tab = .home
 
     /// Whether the first-run explainer has been seen. Read here rather than
@@ -43,7 +48,10 @@ struct RootTabView: View {
     @AppStorage("onboarding.hasSeenWelcome") private var hasSeenWelcome = false
 
     private var showWelcome: Binding<Bool> {
-        Binding(get: { !hasSeenWelcome }, set: { if !$0 { hasSeenWelcome = true } })
+        Binding(
+            get: { !suppressWelcome && !hasSeenWelcome },
+            set: { if !$0 { hasSeenWelcome = true } }
+        )
     }
 
     private var saveErrorPrompt: Binding<Bool> {

@@ -25,6 +25,12 @@ struct BingedApp: App {
     private let storeFailure: String?
     private let service: MediaService
 
+    /// UI tests need the real tab hierarchy immediately. On a fresh simulator
+    /// the first-run sheet otherwise sits over it while XCTest still finds the
+    /// controls behind the sheet, producing taps at {-1, -1} and failures that
+    /// look like missing feed data. A normal launch never sets this flag.
+    private let isUITesting: Bool
+
     @State private var library: MediaLibraryViewModel
 
     /// `nil` on the bundled catalog — see `makeRecommender`.
@@ -100,6 +106,7 @@ struct BingedApp: App {
 
     init() {
         let isUITesting = ProcessInfo.processInfo.arguments.contains(Self.inMemoryStoreArgument)
+        self.isUITesting = isUITesting
 
         let container: ModelContainer
         var failure: String?
@@ -451,7 +458,8 @@ struct BingedApp: App {
                     recommender: recommender,
                     feedService: social?.feed,
                     socialService: social?.graph,
-                    rankingFeedService: social?.rankings
+                    rankingFeedService: social?.rankings,
+                    suppressWelcome: isUITesting
                 )
                     .environment(library)
                     // The catalog, for screens deep enough that handing it down
