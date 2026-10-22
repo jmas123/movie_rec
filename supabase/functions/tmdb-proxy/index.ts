@@ -21,6 +21,10 @@ const ALLOWED = [
   /^(movie|tv)\/\d+$/,
   /^genre\/(movie|tv)\/list$/,
   /^find\/tt\d+$/,
+  // A cast member's filmography, for the screen that asks which of an actor's
+  // titles the people you follow liked. Cast-only: `combined_credits` carries a
+  // `crew` array too, and the app reads the `cast` half of it.
+  /^person\/\d+\/combined_credits$/,
 ];
 
 serve(async (request) => {

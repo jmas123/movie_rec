@@ -21,8 +21,7 @@ import Testing
 private final class RecordingTransport: PublishTransport, @unchecked Sendable {
     private let lock = NSLock()
     private(set) var published: [PublishPayload] = []
-    private(set) var deleted: [(MediaType, Sentiment)] = []
-    private(set) var visibility: Bool?
+    private(set) var deleted: [(MediaType, Sentiment?)] = []
     var failure: Error?
 
     func publish(_ payload: PublishPayload, userID: UUID) async throws {
@@ -30,12 +29,8 @@ private final class RecordingTransport: PublishTransport, @unchecked Sendable {
         lock.lock(); published.append(payload); lock.unlock()
     }
 
-    func setPublished(_ isPublished: Bool, userID: UUID) async throws {
-        if let failure { throw failure }
-        lock.lock(); visibility = isPublished; lock.unlock()
-    }
 
-    func deleteBucket(mediaType: MediaType, sentiment: Sentiment, userID: UUID) async throws {
+    func deleteBucket(mediaType: MediaType, sentiment: Sentiment?, userID: UUID) async throws {
         if let failure { throw failure }
         lock.lock(); deleted.append((mediaType, sentiment)); lock.unlock()
     }
@@ -43,9 +38,9 @@ private final class RecordingTransport: PublishTransport, @unchecked Sendable {
 
 private struct AlwaysFails: Error {}
 
-/// A consented engine, which is what most of these tests are about: the gate
-/// itself is covered in `PublishGatingTests`, and repeating it here would make
-/// every publish test also a consent test.
+/// An engine over a recording transport. Signed in by default: `nil` for
+/// `userID` is the signed-out case, and the only state that stops a drain other
+/// than a ranking in progress (`DrainDuringRankingTests`).
 @MainActor
 private func makeEngine(
     library: MediaLibraryViewModel,
@@ -55,7 +50,6 @@ private func makeEngine(
     SyncEngine(
         library: library,
         transport: transport,
-        consent: .inMemory(granted: true, for: userID ?? UUID()),
         currentUserID: { userID }
     )
 }
@@ -276,7 +270,7 @@ struct SyncEngineTests {
         #expect(transport.published.count == 1)
     }
 
-    @Test("An emptied bucket drains as a delete")
+    @Test("An emptied bucket drains as a delete, and the title lands in the queue")
     func emptiedBucketDeletes() async throws {
         let library = try makeLibrary()
         let only = rank("Alone", library)
@@ -286,7 +280,15 @@ struct SyncEngineTests {
         await makeEngine(library: library, transport: transport).drain()
 
         #expect(transport.deleted.contains { $0.0 == .movie && $0.1 == .liked })
-        #expect(transport.published.isEmpty)
+
+        // **This used to assert `published.isEmpty`, and that was the bug
+        // written down as an expectation.** The title left "Liked it", so the
+        // bucket it left is a delete — but it went *to the watchlist*, and
+        // before the queue was syncable nothing published it, so the row was
+        // deleted from the account and never re-added. Un-ranking a title
+        // erased it from every other device rather than moving it.
+        let queued = try #require(transport.published.last { $0.sentiment == nil })
+        #expect(queued.items.map(\.title) == ["Alone"])
     }
 
     @Test("Unpublishable titles are reported rather than hidden")

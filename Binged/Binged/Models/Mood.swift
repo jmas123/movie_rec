@@ -135,7 +135,7 @@ enum Mood: String, CaseIterable, Identifiable, Sendable {
     /// symbol-only control is unusable to VoiceOver, which Phase 18 checks.
     var symbolName: String {
         switch self {
-        case .crime:       return "handcuffs"
+        case .crime:       return "light.beacon.max"
         case .thriller:    return "bolt.heart"
         case .dark:        return "moon.stars"
         case .horror:      return "theatermask.and.paintbrush"

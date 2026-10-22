@@ -1522,6 +1522,19 @@ Two independent ways to be ignorant — "I know nothing about your taste in this
 
 > **Update 2026-08-24: steps 5 and 6 are done.** All seven migrations are applied to the hosted project, verified by privilege state rather than by the migration record — `20260823000000` shipped a column `REVOKE` that ran successfully and did nothing, and `20260823010000` is the fix. `rls_test.sql` passes **33/33** locally. The client no longer sends `is_published` at all: the column is revoked from `authenticated`, new rows inherit their bucket's answer from a trigger, and visibility changes go through `set_library_published`.
 >
+> **Update 2026-08-26: the publish consent flow is gone.** Everything above about
+> `is_published`, the inheritance trigger, `set_library_published`,
+> `PublishConsent` and the consent sheet describes code that no longer exists —
+> it is kept as the record of what was built and why, not as a description of the
+> app. Visibility is now the account's `is_private` setting alone
+> (`20260826020000_visibility_follows_account_privacy.sql`, and the amendment
+> atop `PART-IV-SYNC.md`). The trigger for the change came from step 7 below, in
+> substance if not by name: two accounts on the running app could not see each
+> other's rankings, because `needsConsentDecision` required
+> `publishableCount > 0` and a brand-new account has none — so it was never
+> asked, and the switch it was never offered lived in a Settings section it had
+> no reason to open.
+>
 > **What is left is step 7 — the two-account walk**, scripted at `MANUAL-QA.md` §7c–7i. Nothing has yet exercised the real client against the deployed policies, which is the only coverage neither the unit suite nor pgTAP provides.
 >
 > **`GAP-AUDIT` §6 is closed too.** `CompositionRootTests.swift` calls the same factories `BingedApp.init()` calls, so the two bugs that a green suite missed today — an engine with no call site, and a migration stage whose from- and to-checksums matched — now fail in the suite instead of on launch.

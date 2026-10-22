@@ -88,6 +88,13 @@ final class MockAuthService: AuthService, @unchecked Sendable {
         return signedIn
     }
 
+    var hasStoredSession: Bool {
+        get async {
+            lock.lock(); defer { lock.unlock() }
+            return signedIn != nil
+        }
+    }
+
     func isHandleAvailable(_ handle: String) async -> Bool {
         guard Handle.isValid(handle) else { return false }
         lock.lock(); defer { lock.unlock() }

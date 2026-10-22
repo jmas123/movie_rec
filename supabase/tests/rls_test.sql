@@ -20,7 +20,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path to extensions, public, pg_temp;
 
-select plan(42);
+select plan(41);
 
 -- MARK: - Role switching ------------------------------------------------------
 --
@@ -73,34 +73,23 @@ update public.profiles p set handle = i.name from ids i where p.id = i.id;
 update public.profiles set is_private = true
  where id = (select id from ids where name = 'carol');
 
--- `is_published` is NOT set on these inserts, and cannot be: the
--- `ranked_items_inherit_publication` trigger is BEFORE INSERT and
--- unconditional, so it overwrites whatever a caller sends. That is correct for
--- the app — a row adopts its bucket's decision, or the account's standing
--- answer — but it means a fixture cannot seed a published row by INSERT. The
--- first version of this file tried, and every visibility assertion failed for a
--- reason unrelated to the policy it was testing.
---
--- So publication is applied by UPDATE below, as the table owner. The trigger
--- does not fire on UPDATE, and the column revoke applies to `authenticated`,
--- not to the owner.
+-- Nothing here sets a publication flag, because there is no longer one to set
+-- (`20260826020000_visibility_follows_account_privacy.sql`). A ranked row is
+-- readable by exactly the audience its owner's `is_private` allows, so the
+-- fixture only has to decide who is private — carol, above — and insert rows.
 insert into public.ranked_items
   (user_id, media_type, external_id, title, year, sentiment, score, rank_in_bucket, bucket_size)
 select id, 'movie', 'tmdb:movie:27205', 'Inception', 2010, 'liked', 9.20, 0, 5
   from ids where name in ('alice', 'carol', 'mallory');
 
--- Alice keeps one bucket to herself: a TV title she has synced but not
--- published. Nothing else in this file may see it — assertion 28 — but only
--- until assertion 31, where `set_library_published(true)` correctly publishes
--- every bucket she owns, this one included. Do not reorder those two.
+-- Alice has a second bucket, in the other media type. It exists so that "the
+-- owner reads her whole library" and "a viewer reads her whole library" are
+-- assertions about more than one row — the old per-bucket publication flag is
+-- exactly the kind of thing a single-row fixture would have missed.
 insert into public.ranked_items
   (user_id, media_type, external_id, title, year, sentiment, score, rank_in_bucket, bucket_size)
 select id, 'tv_show', 'tmdb:tv:1396', 'Breaking Bad', 2008, 'liked', 9.60, 0, 5
   from ids where name = 'alice';
-
--- Everyone's film bucket is published; Alice's TV bucket is not. Both audiences
--- of the select policy are now exercisable.
-update public.ranked_items set is_published = true where media_type = 'movie';
 
 insert into public.posts (id, user_id, kind, media_type, external_id, payload)
 select ('aaaaaaaa-0000-0000-0000-00000000000' || row_number() over (order by name))::uuid,
@@ -153,8 +142,8 @@ select tests_login((select id from ids where name = 'bob'));
 select is(
   (select count(*)::int from public.ranked_items
     where user_id = (select id from ids where name = 'alice')),
-  1,
-  'a published row is readable by any signed-in user');
+  2,
+  'a public account''s library is readable by any signed-in user');
 
 select is(
   (select count(*)::int from public.ranked_items
@@ -387,13 +376,21 @@ select is(
   0,
   'a public account you do not follow is readable but not in your feed');
 
--- MARK: - 28–31. Stored is not the same as visible -----------------------------
+-- MARK: - 28–32. Visibility is the account's privacy setting -------------------
 --
--- Part IV (`docs/PART-IV-SYNC.md`). A signed-in user's whole library reaches the
--- server unconditionally; `is_published` decides what anyone else sees. These
--- four are the assertions that make that a database guarantee rather than a
--- client convention, and three of them are negative for the usual reason: the
--- anon key ships in the bundle, so what matters is what Postgres refuses.
+-- Part IV (`docs/PART-IV-SYNC.md`), as amended by
+-- `20260826020000_visibility_follows_account_privacy.sql`. A signed-in user's
+-- whole library reaches the server unconditionally, and what anybody else sees
+-- is decided by the owner's `is_private` and the follow graph — not by a second
+-- per-row opt-in.
+--
+-- The last three are negative and assert *absence*, which is unusual enough to
+-- justify. A dormant `is_published` column would be read again: the trigger that
+-- kept it consistent overwrote whatever a client sent on every insert, and the
+-- two functions that wrote it were SECURITY DEFINER and reachable by anyone
+-- holding the anon key. Removing the gate from the policy without removing the
+-- machinery would leave all of that in place, one migration away from mattering
+-- again.
 
 select tests_as_owner();
 select tests_login((select id from ids where name = 'bob'));
@@ -402,8 +399,8 @@ select is(
   (select count(*)::int from public.ranked_items
     where user_id = (select id from ids where name = 'alice')
       and media_type = 'tv_show'),
-  0,
-  'an unpublished row is invisible to others');
+  1,
+  'a public account''s whole library is readable — there is no publish step');
 
 select tests_as_owner();
 select tests_login((select id from ids where name = 'alice'));
@@ -411,65 +408,22 @@ select tests_login((select id from ids where name = 'alice'));
 select is(
   (select count(*)::int from public.ranked_items where user_id = auth.uid()),
   2,
-  'the owner reads her whole library, published or not');
+  'the owner reads her whole library');
 
--- The column revoke is what stops a client flipping one row and leaving a
--- bucket half-visible, which would let a viewer read `bucket_size` against rows
--- they cannot see.
-select throws_ok(
-  $q$update public.ranked_items set is_published = true where media_type = 'tv_show'$q$::text,
-  '42501'::text,
-  null::text,
-  'a client cannot set is_published directly');
+select hasnt_column(
+  'public', 'ranked_items', 'is_published',
+  'the per-row publication flag is gone, not merely unused');
 
--- And the RPC moves a whole bucket, which is the only granularity that keeps
--- `bucket_size` honest.
-select is(
-  public.set_library_published(true),
-  2,
-  'set_library_published flips every row it owns');
+select hasnt_function(
+  'public', 'set_library_published',
+  'and so is the definer function that wrote it past the column revoke');
 
--- `where user_id = auth.uid()` inside the function body is now the ONLY
--- boundary protecting every account's library, because the function is
--- SECURITY DEFINER and writes past the column revoke. A future edit that
--- parameterised it — for an admin screen, say — would remove that boundary
--- without failing anything else in this file. So it gets its own assertion.
---
--- **As the owner, deliberately.** Read as alice this cannot distinguish "the
--- RPC did not modify these rows" from "alice may not see these rows" — and at
--- this point she may not: she has no active follow to carol, so RLS hides that
--- library and the count is 0 for a reason unrelated to the boundary. Reading as
--- owner bypasses RLS and asks the question actually being asked. `auth.uid()`
--- is null for the owner, so alice is named by id instead.
---
--- Expected 1, not 2: mallory's account was deleted at assertion 25, so carol is
--- the only other library still standing.
-select tests_as_owner();
-
-select is(
-  (select count(*)::int from public.ranked_items
-    where user_id <> (select id from ids where name = 'alice')
-      and is_published),
-  1,
-  'set_library_published touched nobody else''s rows');
-
-select tests_login((select id from ids where name = 'alice'));
-
--- The empty-bucket case. A consented user ranking into a bucket that has no
--- rows yet must inherit the account's standing answer, or their first TV show
--- lands silently private and the only symptom is a follower not seeing it.
-insert into public.ranked_items
-  (user_id, media_type, external_id, title, year, sentiment, score, rank_in_bucket, bucket_size)
-values (auth.uid(), 'movie', 'tmdb:movie:603', 'The Matrix', 1999, 'fine', 5.10, 0, 1);
-
-select is(
-  (select is_published from public.ranked_items
-    where user_id = auth.uid() and external_id = 'tmdb:movie:603'),
-  true,
-  'a new bucket adopts the standing answer');
+select hasnt_function(
+  'public', 'set_bucket_published',
+  'and its per-bucket sibling');
 
 
--- MARK: - 34–36. The follow-request inbox -------------------------------------
+-- MARK: - 33–35. The follow-request inbox -------------------------------------
 --
 -- The whole chain from "A taps Follow" to "B sees a request", which was the one
 -- link in the private-account feature nothing asserted. Every part of it was
@@ -523,7 +477,7 @@ select is(
   'a public account never accrues requests — the follow is already active');
 
 
--- MARK: - 37–38. Following twice ----------------------------------------------
+-- MARK: - 36–37. Following twice ----------------------------------------------
 --
 -- The client's `follow` is an upsert, and **which** upsert is load-bearing.
 --
@@ -573,14 +527,14 @@ select is(
   'a repeat follow never sends an accepted request back to pending');
 
 
--- MARK: - 39–42. title_watchers narrows to followees ---------------------------
+-- MARK: - 38–41. title_watchers narrows to followees ---------------------------
 --
 -- The RPC's whole job is to answer "who that I follow has an opinion about this"
 -- rather than "who on this service does". The narrowing is a courtesy — nothing
 -- it hides is anything RLS would have let through — but the two rules it must
 -- NOT weaken are policy, and those are what the negative assertions below pin:
--- an unpublished row stays invisible even to a follower, and a stranger's
--- published row stays invisible for want of a follow edge.
+-- a stranger stays invisible for want of a follow edge, and a private account
+-- the caller does not follow stays invisible even though the title matches.
 --
 -- Edges are (re)established here as the table owner rather than inherited from
 -- the assertions above, so this block does not silently change meaning when
@@ -614,19 +568,8 @@ select id, 'movie', 'tmdb:movie:27205', 'Inception', 2010, 'liked', 7.10, 2, 5
   from ids where name = 'bob'
 on conflict (user_id, media_type, external_id) do nothing;
 
--- And alice has one that is deliberately NOT published. Set by UPDATE for the
--- same reason the fixture above does: the BEFORE INSERT trigger overwrites
--- whatever a caller sends, and by now alice's standing answer is "published".
-insert into public.ranked_items
-  (user_id, media_type, external_id, title, year, sentiment, score, rank_in_bucket, bucket_size)
-select id, 'movie', 'tmdb:movie:99999', 'Unreleased', 2026, 'liked', 8.00, 0, 5
-  from ids where name = 'alice'
-on conflict (user_id, media_type, external_id) do nothing;
-
-update public.ranked_items set is_published = true
- where external_id = 'tmdb:movie:27205';
-update public.ranked_items set is_published = false
- where external_id = 'tmdb:movie:99999';
+-- Carol is private and bob does not follow her, and she has an opinion about
+-- the same film — the fixture for the last assertion below.
 
 select tests_login((select id from ids where name = 'bob'));
 
@@ -634,7 +577,7 @@ select is(
   (select count(*)::int from public.title_watchers('movie', 'tmdb:movie:27205')
     where handle = 'alice'),
   1,
-  'title_watchers returns a followee''s published opinion');
+  'title_watchers returns a followee''s opinion');
 
 select is(
   (select count(*)::int from public.title_watchers('movie', 'tmdb:movie:27205')
@@ -646,12 +589,17 @@ select is(
   (select count(*)::int from public.title_watchers('movie', 'tmdb:movie:27205')
     where handle = 'mallory'),
   0,
-  'title_watchers does not return a stranger, published or not');
+  'title_watchers does not return a stranger');
 
+-- Carol's row survives `ranked_items_select` only for somebody who follows her,
+-- and bob does not. Two rules could hide it — the RPC's own `follows_actively`
+-- and the policy's — and that redundancy is the point: this is the assertion
+-- that fails if a future edit relaxes either one.
 select is(
-  (select count(*)::int from public.title_watchers('movie', 'tmdb:movie:99999')),
+  (select count(*)::int from public.title_watchers('movie', 'tmdb:movie:27205')
+    where handle = 'carol'),
   0,
-  'an unpublished row stays invisible even to an active follower');
+  'a private account the caller does not follow stays invisible');
 
 
 -- `finish()` belongs after the last assertion, not in the middle. It used to sit

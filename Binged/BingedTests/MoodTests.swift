@@ -14,6 +14,7 @@
 
 import Foundation
 import Testing
+import UIKit
 @testable import Binged
 
 @Suite("Mood")
@@ -188,6 +189,17 @@ struct MoodTests {
         }
 
         #expect(Mood.allCases.count == 10)
+    }
+
+    /// The uniqueness test above passes for a name SF Symbols has never had —
+    /// `handcuffs` shipped that way and the Crime chip drew nothing. Only the
+    /// system can say whether a name resolves, so ask it.
+    @Test("Every mood symbol resolves to a real SF Symbol")
+    func symbolsResolve() {
+        for mood in Mood.allCases {
+            #expect(UIImage(systemName: mood.symbolName) != nil,
+                    "\(mood.displayName) uses \(mood.symbolName), which SF Symbols does not have")
+        }
     }
 
     @Test("Relevance is binary today and bounded whatever it becomes")

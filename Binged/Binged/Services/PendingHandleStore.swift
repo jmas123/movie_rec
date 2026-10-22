@@ -22,8 +22,8 @@
 //
 //  **On storage.** `UserDefaults` is a required-reason API and is already
 //  declared in `PrivacyInfo.xcprivacy` under CA92.1 — accessible only to the
-//  app itself — which `PublishConsent` established. Adding a second key under
-//  the same reason needs no manifest change. The record is cleared as soon as
+//  app itself. Adding a key under an already-declared reason needs no manifest
+//  change. The record is cleared as soon as
 //  it is used or superseded, so the address does not linger past the sign-in
 //  it exists to serve.
 //

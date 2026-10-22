@@ -59,8 +59,7 @@ private final class RecordingFeedService: FeedService, @unchecked Sendable {
 
 private final class NoopTransport: PublishTransport, @unchecked Sendable {
     func publish(_ payload: PublishPayload, userID: UUID) async throws {}
-    func deleteBucket(mediaType: MediaType, sentiment: Sentiment, userID: UUID) async throws {}
-    func setPublished(_ isPublished: Bool, userID: UUID) async throws {}
+    func deleteBucket(mediaType: MediaType, sentiment: Sentiment?, userID: UUID) async throws {}
 }
 
 private func post(_ index: Int, at date: Date) -> FeedPost {
@@ -90,7 +89,7 @@ struct PostEmissionTests {
         let userID = UUID()
         let engine = SyncEngine(
             library: library, transport: NoopTransport(), feed: feed,
-            consent: .inMemory(granted: true, for: userID), currentUserID: { userID }
+            currentUserID: { userID }
         )
 
         for index in 0..<9 {
@@ -124,7 +123,7 @@ struct PostEmissionTests {
         let userID = UUID()
         let engine = SyncEngine(
             library: library, transport: NoopTransport(), feed: feed,
-            consent: .inMemory(granted: true, for: userID), currentUserID: { userID }
+            currentUserID: { userID }
         )
 
         for index in 0..<3 {
@@ -151,7 +150,7 @@ struct PostEmissionTests {
         let userID = UUID()
         let engine = SyncEngine(
             library: library, transport: NoopTransport(), feed: feed,
-            consent: .inMemory(granted: true, for: userID), currentUserID: { userID }
+            currentUserID: { userID }
         )
 
         library.addToWantToWatch(
@@ -169,7 +168,7 @@ struct PostEmissionTests {
         let userID = UUID()
         let engine = SyncEngine(
             library: library, transport: NoopTransport(), feed: feed,
-            consent: .inMemory(granted: true, for: userID), currentUserID: { userID }
+            currentUserID: { userID }
         )
 
         let anonymous = MediaItem(title: "No id", year: 2020, type: .movie)
@@ -184,11 +183,11 @@ struct PostEmissionTests {
     func signedOutPostsNothing() async throws {
         let library = try makeLibrary()
         let feed = RecordingFeedService()
-        // Signed out: no user id, so no consent either — the gate and the
+        // Signed out: no user id, so nothing drains and nothing posts — the
         // missing account both point the same way here.
         let engine = SyncEngine(
             library: library, transport: NoopTransport(), feed: feed,
-            consent: .inMemory(), currentUserID: { nil }
+            currentUserID: { nil }
         )
 
         let item = MediaItem(externalId: "tmdb:movie:1", title: "Quiet", year: 2020, type: .movie)

@@ -53,8 +53,6 @@ struct BingedApp: App {
     /// server configured, or a build with no social stack.
     @State private var restorer: LibraryRestorer?
 
-    /// The account currently being asked to publish, or `nil` when nobody is.
-    @State private var consentPrompt: ConsentPrompt?
 
     /// Fires the drain when the network returns. Held for the app's lifetime
     /// because a monitor nobody retains stops monitoring.
@@ -62,11 +60,6 @@ struct BingedApp: App {
 
     @Environment(\.scenePhase) private var scenePhase
 
-    /// Identifiable so `sheet(item:)` can present for exactly one account, and
-    /// re-present if a different one signs in.
-    struct ConsentPrompt: Identifiable, Equatable {
-        let id: UUID
-    }
 
     /// Launch argument that swaps the on-disk store for a throwaway in-memory
     /// one, so UI tests start from a known-empty library every run.
@@ -144,7 +137,14 @@ struct BingedApp: App {
         _recommender = State(initialValue: Self.makeRecommender(service: service, library: library))
         let stack = Self.makeSocialStack(isUITesting: isUITesting)
         self.social = stack
-        let session = SessionViewModel(service: stack?.auth)
+        // The profile cache is what keeps an offline launch signed in — see
+        // `ProfileCache`. Skipped under test for the same reason the social
+        // stack is: the unit suite boots this app for real, and a cache written
+        // by one run must not decide what the next one restores.
+        let session = SessionViewModel(
+            service: stack?.auth,
+            profiles: Self.isRunningTests ? nil : UserDefaultsProfileCache()
+        )
         _session = State(initialValue: session)
         _sync = State(initialValue: Self.makeSyncEngine(stack: stack, library: library, session: session))
         _restorer = State(initialValue: Self.makeRestorer(stack: stack, library: library, session: session))
@@ -157,11 +157,10 @@ struct BingedApp: App {
     /// place where the local ranking and the server meet, and it is built where
     /// both are in scope rather than by handing the stack a view model.
     ///
-    /// The mock stack publishes into `MockPublishTransport`. The consent sheet
-    /// and the Settings publishing section only exist once an account does,
-    /// which makes them the two surfaces hardest to look at — an engine over a
-    /// transport that reaches nothing is what makes them reachable under
-    /// `-uiTestingMockSocial`.
+    /// The mock stack publishes into `MockPublishTransport`. The Settings
+    /// sharing section only exists once an account does, which makes it one of
+    /// the hardest surfaces to look at — an engine over a transport that
+    /// reaches nothing is what makes it reachable under `-uiTestingMockSocial`.
     @MainActor
     static func makeSyncEngine(
         stack: SocialStack?,
@@ -181,7 +180,6 @@ struct BingedApp: App {
             library: library,
             transport: transport,
             feed: stack.feed,
-            consent: PublishConsent(),
             currentUserID: { session.profile?.id }
         )
     }
@@ -350,15 +348,6 @@ struct BingedApp: App {
 
     // MARK: - Publishing
 
-    /// Re-reads consent for whoever is signed in now, drains, and asks the
-    /// sharing question if it has never been answered.
-    ///
-    /// **The drain runs either way.** The library belongs in the account so that
-    /// signing in on another device restores it, and somebody who has not
-    /// answered a question about followers has not declined to keep their own
-    /// data — unanswered rows go up private. The answer decides `is_published`
-    /// and nothing else.
-    @MainActor
     /// Retries **both** halves of sync, for the triggers that are not a sign-in.
     ///
     /// Foreground and connectivity-return used to drain only. That was a real
@@ -374,23 +363,28 @@ struct BingedApp: App {
     ///
     /// Cheap to call repeatedly. A successful restore is remembered per account
     /// and returns immediately; a drain with an empty outbox does nothing.
+    @MainActor
     private func catchUp() async {
         if session.isSignedIn {
+            // A profile `restore()` had to take from the cache because the
+            // network was down at launch. No-op in every other case.
+            await session.refreshProfileIfStale()
             await restorer?.restore()
         }
         await sync?.drain()
     }
 
+    /// Brings this device and the account into line whenever the session
+    /// changes — a fresh sign-in, a session restored at launch, a sign-out.
+    ///
+    /// **The drain is unconditional while signed in.** The library belongs in
+    /// the account so that signing in on another device restores it; there is
+    /// no question asked about it, and never was one that stopped it. Who else
+    /// may *read* those rows is the account's own privacy setting and is
+    /// decided in Postgres, not here.
+    @MainActor
     private func sessionChanged() async {
         guard let sync else { return }
-        sync.refreshConsent()
-
-        // A stale prompt for a previous account must go before a new one can
-        // appear.
-        consentPrompt = nil
-        if sync.needsConsentDecision, let userID = session.profile?.id {
-            consentPrompt = ConsentPrompt(id: userID)
-        }
 
         // **Restore before drain, and the order is not a preference.** Draining
         // first would push a device that has not yet seen the account over the
@@ -481,8 +475,7 @@ struct BingedApp: App {
                     // registered later misses the report it exists for.
                     .task { DiagnosticsReporter.shared.start() }
                     // Trigger 1 — the session changed. Covers both a fresh sign-in
-                    // and a session restored at launch, and re-reads consent first
-                    // because the answer belongs to the account, not the device.
+                    // and a session restored at launch.
                     .task(id: session.profile?.id) { await sessionChanged() }
                     // Trigger 2 — foreground. Catches whatever failed while the app
                     // was away, including a failure it never got to retry.
@@ -501,18 +494,6 @@ struct BingedApp: App {
                     // Trigger 4 — the network came back.
                     .onAppear {
                         connectivity.start { Task { @MainActor in await catchUp() } }
-                    }
-                    .sheet(item: $consentPrompt) { _ in
-                        PublishConsentView(
-                            publishableCount: sync?.publishableCount ?? 0,
-                            unpublishableCount: sync?.unpublishableCount ?? 0
-                        ) { granted in
-                            consentPrompt = nil
-                            // The local answer gates the *next* drain's flag, so
-                            // a failed flip here costs visibility on rows already
-                            // up — which Settings can retry — not the sync.
-                            Task { try? await sync?.record(consent: granted) }
-                        }
                     }
             }
         }

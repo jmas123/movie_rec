@@ -96,12 +96,17 @@ struct EditProfileView: View {
             } header: {
                 Text("Privacy")
             } footer: {
-                // Said plainly, because the consequence is not obvious: going
-                // private does not retract what followers already have.
+                // Said plainly, because two consequences are not obvious.
+                // Going private does not retract what followers already have —
+                // and this one toggle is the whole of who can see the ranking,
+                // since the separate publish opt-in was removed. A user looking
+                // for a "share my ranking" switch is looking for this one.
                 Text(isPrivate
-                     ? "New followers have to be approved by you. People who "
+                     ? "New followers have to be approved by you, and only "
+                       + "approved followers can see your ranking. People who "
                        + "already follow you keep their access."
-                     : "Anyone can follow you and see what you publish.")
+                     : "Anyone on Binged can follow you and see your ranking, "
+                       + "your posts and your comments.")
             }
         }
         .navigationTitle("Edit Profile")

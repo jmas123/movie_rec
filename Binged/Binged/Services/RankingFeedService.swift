@@ -31,6 +31,19 @@ protocol RankingFeedService: Sendable {
     /// qualifies — an empty section and a private account are the same answer
     /// on purpose.
     func watchers(externalID: String, mediaType: MediaType, limit: Int) async throws -> [TitleWatcher]
+
+    /// Which of `externalIDs` the viewer's followees put in their Liked bucket.
+    ///
+    /// The same question as `watchers`, asked about a set of titles instead of
+    /// one, and narrowed to liked. A cast member's screen holds a filmography
+    /// and needs to know which of it landed with the people the viewer follows;
+    /// asking title by title would be one round trip per credit to draw one
+    /// screen.
+    ///
+    /// Returns empty rather than throwing when nobody qualifies — and a title
+    /// nobody liked simply has no rows, so the caller must not read a missing
+    /// id as an error.
+    func likes(externalIDs: [String], limit: Int) async throws -> [TitleLike]
 }
 
 // MARK: - SupabaseRankingFeedService
@@ -53,6 +66,21 @@ final class SupabaseRankingFeedService: RankingFeedService, @unchecked Sendable 
                     query: [
                         URLQueryItem(name: "user_id", value: "eq.\(userID.uuidString.lowercased())"),
                         URLQueryItem(name: "select", value: "*"),
+                        // **Ranked rows only.** A want-to-watch entry is a legal
+                        // `ranked_items` row with a null sentiment, score and
+                        // rank (`ranked_or_queued`), and since the watchlist
+                        // became syncable those rows exist. `RankedItem`
+                        // declares all three non-optional, so one of them in the
+                        // response fails the decode for the *whole page* — a
+                        // profile that renders nothing because the person it
+                        // belongs to queued a film.
+                        //
+                        // Filtered here rather than made optional in the model
+                        // because this screen is somebody's ranking: a title
+                        // they have not watched has no position in it and
+                        // nothing to say. `title_watchers` excludes them in SQL
+                        // for the same reason.
+                        URLQueryItem(name: "sentiment", value: "not.is.null"),
                         URLQueryItem(name: "order", value: "media_type.asc,sentiment.asc,rank_in_bucket.asc"),
                     ],
                     range: offset...(offset + max(0, limit - 1))
@@ -87,6 +115,26 @@ final class SupabaseRankingFeedService: RankingFeedService, @unchecked Sendable 
         }
     }
 
+    func likes(externalIDs: [String], limit: Int) async throws -> [TitleLike] {
+        // Nothing to ask about is not a request. An empty array would return
+        // every liked row of every followee, bounded only by `limit`.
+        guard !externalIDs.isEmpty else { return [] }
+
+        do {
+            return try await client.send(
+                .init(
+                    method: "POST",
+                    url: configuration.rpc("titles_liked_by_followees"),
+                    body: try SupabaseClient.encoder.encode(
+                        LikesRequest(externalIDs: externalIDs, limit: limit)
+                    )
+                )
+            )
+        } catch SupabaseError.forbidden {
+            return []
+        }
+    }
+
     private struct WatchersRequest: Encodable {
         let mediaType: String
         let externalID: String
@@ -95,6 +143,16 @@ final class SupabaseRankingFeedService: RankingFeedService, @unchecked Sendable 
         enum CodingKeys: String, CodingKey {
             case mediaType = "p_media_type"
             case externalID = "p_external_id"
+            case limit = "p_limit"
+        }
+    }
+
+    private struct LikesRequest: Encodable {
+        let externalIDs: [String]
+        let limit: Int
+
+        enum CodingKeys: String, CodingKey {
+            case externalIDs = "p_external_ids"
             case limit = "p_limit"
         }
     }
@@ -151,7 +209,40 @@ final class MockRankingFeedService: RankingFeedService, @unchecked Sendable {
         return Array(all.filter { !hidden.contains($0.userID) }.prefix(max(0, limit)))
     }
 
+    /// Derived from the watchers already seeded, deliberately.
+    ///
+    /// The server answers both from the same rows, so a fixture that let the
+    /// two disagree would let a test pass on a set-up the real thing cannot
+    /// produce. What is *not* derived is the filtering: liked-only and the
+    /// limit are applied here because they are what the RPC does, and a mock
+    /// that returned everything would make a caller that forgets to group by
+    /// sentiment look correct.
+    func likes(externalIDs: [String], limit: Int) async throws -> [TitleLike] {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let wanted = Set(externalIDs)
+        let likes = watchersByTitle
+            .sorted { $0.key < $1.key }        // deterministic, unlike a dictionary
+            .flatMap { key, watchers -> [TitleLike] in
+                guard let (mediaType, externalID) = Self.parse(key),
+                      wanted.contains(externalID) else { return [] }
+                return watchers
+                    .filter { $0.sentiment == .liked && !hidden.contains($0.userID) }
+                    .map { TitleLike(externalId: externalID, mediaType: mediaType, person: $0) }
+            }
+        return Array(likes.prefix(max(0, limit)))
+    }
+
     private static func titleKey(_ externalID: String, _ mediaType: MediaType) -> String {
         "\(mediaType.rawValue)|\(externalID)"
+    }
+
+    private static func parse(_ key: String) -> (MediaType, String)? {
+        let parts = key.split(separator: "|", maxSplits: 1)
+        guard parts.count == 2, let type = MediaType(rawValue: String(parts[0])) else {
+            return nil
+        }
+        return (type, String(parts[1]))
     }
 }

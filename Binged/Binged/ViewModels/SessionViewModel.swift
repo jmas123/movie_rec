@@ -35,12 +35,23 @@ final class SessionViewModel {
     private(set) var state: State
     private(set) var lastError: String?
 
+    /// True when `state` is `signedIn` on a *cached* profile because the
+    /// server could not be reached. The session is real; the details on screen
+    /// may be a launch or two old, so `refreshProfileIfStale` is worth calling
+    /// when the app comes back to the foreground or the network returns.
+    private(set) var isProfileStale = false
+
     @ObservationIgnored private let service: AuthService?
+    @ObservationIgnored private let profiles: ProfileCache?
 
     // MARK: Init
 
-    init(service: AuthService?) {
+    /// - Parameter profiles: where the last known profile is kept, so a launch
+    ///   with no signal can stay signed in. `nil` disables that — which is what
+    ///   most tests want, and what a build with no accounts gets anyway.
+    init(service: AuthService?, profiles: ProfileCache? = nil) {
         self.service = service
+        self.profiles = profiles
         state = service == nil ? .unavailable : .signedOut
     }
 
@@ -62,20 +73,66 @@ final class SessionViewModel {
 
     /// Picks up an existing session at launch.
     ///
-    /// Failure is silent and lands on `signedOut`: a expired token at launch is
-    /// routine, and greeting someone with an error before they have done
-    /// anything is not useful.
+    /// Failure is silent: greeting someone with an error before they have done
+    /// anything is not useful. What failure must *not* be is a sign-out.
+    ///
+    /// **A thrown error is not evidence of an expired session.** This used to
+    /// land on `signedOut` for any failure at all, which meant a launch on a
+    /// train, behind a captive portal, or during a five-second Supabase blip
+    /// presented as "you are signed out" — with the credential sitting intact
+    /// in the Keychain the whole time. Signing in again worked, which is
+    /// exactly why it reads as a session that keeps expiring.
+    ///
+    /// So the two questions are asked separately: *is there still a
+    /// credential* (`hasStoredSession`, local and offline-safe) and *who does
+    /// it belong to* (`currentProfile`, a network call). Only the first may end
+    /// a session. When it says yes and the second could not answer, the cached
+    /// profile carries the UI until it can.
     func restore() async {
         guard let service else { return }
         do {
             if let profile = try await service.currentProfile() {
-                state = .signedIn(profile)
+                adopt(profile)
             } else {
-                state = .signedOut
+                // An authoritative "nobody is signed in".
+                signedOutLocally()
             }
         } catch {
-            state = .signedOut
+            guard await service.hasStoredSession, let cached = profiles?.load() else {
+                // The credential is gone — the client cleared it because the
+                // server rejected it — or there was never one to keep.
+                signedOutLocally()
+                return
+            }
+            state = .signedIn(cached)
+            isProfileStale = true
         }
+    }
+
+    /// Re-fetches a profile that `restore()` had to take from the cache.
+    ///
+    /// Cheap and safe to call on every foreground and every return of the
+    /// network: it does nothing unless a stale profile is actually on screen,
+    /// and a failure leaves the session exactly where it was.
+    func refreshProfileIfStale() async {
+        guard isProfileStale, let service, isSignedIn else { return }
+        guard let profile = try? await service.currentProfile() else { return }
+        adopt(profile)
+    }
+
+    /// Records a profile the server has just confirmed.
+    private func adopt(_ profile: UserProfile) {
+        state = .signedIn(profile)
+        isProfileStale = false
+        profiles?.save(profile)
+    }
+
+    /// Ends the session locally, cache included, so a later offline launch
+    /// cannot resurrect a profile nobody is signed in as.
+    private func signedOutLocally() {
+        state = .signedOut
+        isProfileStale = false
+        profiles?.clear()
     }
 
     // MARK: Actions
@@ -113,7 +170,7 @@ final class SessionViewModel {
     func signOut() async {
         guard let service else { return }
         await service.signOut()
-        state = .signedOut
+        signedOutLocally()
         lastError = nil
     }
 
@@ -129,7 +186,7 @@ final class SessionViewModel {
         lastError = nil
         do {
             try await service.deleteAccount()
-            state = .signedOut
+            signedOutLocally()
         } catch let error as AuthError {
             lastError = error.description
         } catch {
@@ -150,7 +207,7 @@ final class SessionViewModel {
         let previous = state
         state = .signingIn
         do {
-            state = .signedIn(try await work(service))
+            adopt(try await work(service))
         } catch let error as AuthError {
             lastError = error.description
             state = previous == .signingIn ? .signedOut : previous

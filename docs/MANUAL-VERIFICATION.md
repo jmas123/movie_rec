@@ -10,7 +10,7 @@ they are not scattered across commit messages and roadmap notes.
 > subset of this queue that stands between the working tree and a TestFlight build, ordered by
 > what blocks what. §§6, 7 and 9 below are folded into it.
 
-Last updated 2026-08-21.
+Last updated 2026-08-27.
 
 ---
 
@@ -41,6 +41,29 @@ Phase 22 step 5. It is a system framework with no dependency cost, but it needs
 an entitlement, a configured Services ID in the developer portal, and a real
 device to test — none of which an autonomous session can set up. The email and
 password path is complete and is the fallback either way.
+
+### 7. Session survival on a real device
+
+The client-side causes of "my session expired" are fixed and unit-tested
+(`SessionPersistenceTests`): a refresh that fails on transport or on a 5xx no
+longer clears the Keychain, an expired access token is refreshed before the
+request rather than after the 401, and a launch that cannot reach the server
+restores from the cached profile instead of showing a signed-out app. What a
+simulator cannot settle:
+
+- **Airplane mode, cold launch.** Sign in, force-quit, go offline, launch. The
+  app must come up signed in (profile from cache, marked stale), and must be
+  showing live data again within a moment of the network returning.
+- **A long gap.** Sign in, leave the app for longer than the project's JWT
+  expiry (1 hour by default), come back. One refresh, no sign-out.
+- **The dashboard's own settings.** Nothing the client does can survive a
+  server that revokes the token: check Authentication → Sessions for a
+  configured inactivity timeout or a very short refresh-token reuse interval,
+  since either will expire sessions no matter how well the client behaves.
+- **Two devices on one account.** Refresh tokens rotate, so a device that
+  refreshes with a token the other has already spent is the one remaining way
+  to be signed out legitimately. Worth confirming it does not happen in normal
+  use.
 
 ---
 
@@ -80,17 +103,30 @@ without it. Never restate what is deployed from a document; run the command, and
 if you cannot, say that the state is unverified rather than repeating the last
 thing someone wrote.
 
+**All thirteen migrations are applied as of 2026-08-27.** The push that evening
+offered exactly one file —
+`20260826020000_visibility_follows_account_privacy.sql` — and the CLI compares
+local against remote to decide what to offer, so `20260826000000_title_watchers`
+and `20260826010000_content_filter` were already there. **Both were listed here
+as "still not deployed" and both claims were wrong**, which is the same failure
+this section already documents once: two entries asserting remote state that
+neither author had checked. The push output is the check; the list was not.
+
+What `20260826020000` changed, since it is the one with a user-visible
+consequence: it drops `ranked_items.is_published`, `profiles.publishes_library`,
+the inheritance trigger and both publication RPCs, and rewrites
+`ranked_items_select` so a library is readable by whoever the owner's
+`is_private` allows — public account, anyone signed in; private account,
+accepted followers. **Every library that was sitting unpublished became readable
+by any signed-in user unless its owner is private.** Acceptable here only
+because the app has not shipped and every account is a test account; it would
+not be after TestFlight. Verified against a local `db reset` on 2026-08-26 —
+`rls_test.sql` passes 41/41 with it applied — and then pushed on 2026-08-27.
+**Local Postgres is 15.x and the project is 17.x, so the local run is strong
+evidence and not proof; the push succeeding is the proof that it applies.**
+
 Still not deployed:
 
-- **`20260826010000_content_filter.sql`** — the UGC term filter (App Store 1.2's
-  fourth requirement; see `docs/APP-STORE-CONNECT-RECORD.md` §4). Written and
-  verified against a local `db reset` on 2026-08-26: 18 pgTAP assertions in
-  `supabase/tests/content_filter_test.sql`, with `rls_test` (42) and
-  `comment_editing_test` (10) still green beside it. **Local Postgres is 15.x
-  and the project is 17.x, so that is strong evidence and not proof.**
-- `20260826000000_title_watchers.sql` — added the same day by another session;
-  listed here because it is newer than the push that made §7's "all ten applied"
-  true, not because anything is known to be wrong with it.
 - `supabase/functions/tmdb-proxy/` — the TMDB credential proxy. Phase 35: deploy
   it, `supabase secrets set TMDB_READ_TOKEN=…`, then remove the token from the
   release build and **rotate it**. Until the function is live every build falls

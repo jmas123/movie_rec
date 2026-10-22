@@ -22,6 +22,50 @@
 > `SupportLinks.privacyPolicy` points at a URL that does not resolve. Phase 34
 > is untouched.
 
+> ## Amended 2026-08-26 — `is_published` is gone
+>
+> **Everything below about a *second* opt-in is superseded.** The publish
+> consent flow was removed whole: the `is_published` column, the
+> `publishes_library` standing answer, the inheritance trigger,
+> `set_library_published`, `set_bucket_published`, `PublishConsent`,
+> `PublishConsentView`, and the Settings section that flipped it. See
+> `supabase/migrations/20260826020000_visibility_follows_account_privacy.sql`,
+> **applied to the hosted project on 2026-08-27.**
+>
+> **What replaces it is the account's own privacy setting**, which already
+> existed and already governed the feed, the profile and follow requests:
+>
+> | Account | Who can read the ranking |
+> |---|---|
+> | public (`is_private = false`, the default) | any signed-in user |
+> | private | accounts whose follow request the owner has **accepted** |
+>
+> `ranked_items_select` is now `user_id = auth.uid() or app.can_view_library(user_id)`
+> — and `can_view_library` has meant exactly the table above since
+> `20260821210000_social.sql`. The old flag was AND-ed on top of a predicate
+> that was already correct.
+>
+> **Why.** The split below is sound in the abstract and was wrong in the hand.
+> Two switches for one question produced accounts that could not see each other
+> with nothing on screen to say why: `needsConsentDecision` required
+> `publishableCount > 0`, so an account created *before* it ranked anything —
+> which is every new account — was never asked, and the only remaining way to
+> find the switch was to go looking in Settings for a thing you did not know
+> existed. Reported from the outside as "why can't I see ethan's taste match".
+>
+> **What §3 gets right and keeps.** Storing and showing are still different
+> questions with different answers, and the answer to the first is still an
+> unconditional yes. What changed is only that the second question is no longer
+> asked twice: an account's privacy setting answers it for the ranking exactly
+> as it already did for everything else the account publishes.
+>
+> **The cost, stated plainly:** every library that was sitting unpublished
+> became readable by any signed-in user the moment that migration applied,
+> unless its owner had turned Private on. That is the Instagram default and it
+> is disclosed at sign-up (§5), but it is a one-way door for the accounts that
+> had answered "no" to the old question, and it is written here rather than left
+> to be inferred from a policy diff.
+
 ## 1. The decision
 
 > "I want each user's entries to be in their account at all times, so if they sign in from any device, their entries are there."
@@ -77,6 +121,13 @@ gets no cloud copy at all.
 **Part IV separates the two at the security boundary**, because per `CLAUDE.md`
 a rule the client enforces and Postgres does not is not a rule.
 
+**Amended 2026-08-26.** The separation stands; the *second column* of that table
+does not. "Should it be opt-in?" is now answered by the account's privacy
+setting rather than by a switch of its own — public account, anyone signed in;
+private account, approved followers. The row that matters is unchanged: your
+cloud copy is never opt-in, because it is your own data. See the amendment at
+the top of this file.
+
 ## 4. Schema
 
 One migration. One column, one policy.
@@ -129,10 +180,13 @@ find out.
 Three statements the app currently makes become false, and shipping any of them
 unchanged would be a lie rather than an oversight:
 
-1. **The consent sheet.** It currently reads *"Nothing has been uploaded yet.
-   Your ranking stays on this device until you say so."* That is false the
-   moment `drain()` is unconditional. The sentence does not get edited — it gets
-   deleted, and the sheet gets repointed at the publishing question.
+1. **The consent sheet.** It read *"Nothing has been uploaded yet. Your ranking
+   stays on this device until you say so."* — false the moment `drain()` is
+   unconditional. It was repointed at the publishing question, and then
+   **deleted outright on 2026-08-26** along with the question it asked. Nothing
+   replaces it: the disclosure below is now the only thing the app says on the
+   subject before the fact, which is what makes the sentence load-bearing rather
+   than decorative.
 2. **`CLAUDE.md`'s "Do not" section.** It lists what never leaves the device:
    untracked items, nil-`externalId` items, and anything at all while signed
    out. The first and third stay true. What changes is the neighbouring claim
@@ -154,11 +208,19 @@ Privacy Policy" toggle's label, and `canSubmit`'s `guard acceptedTerms` must
 stay — that gate is Guideline 3.1.2/1.2 and is load-bearing on its own. The
 disclosure belongs beside the toggle, not inside it.
 
-**Requirement: account creation discloses sync.** Signing up *is* the moment the
-user grants it, so it is the moment they must be told — one plain sentence at
-the point of decision, not a clause in a policy nobody opens. "Your rankings are
-saved to your account so they follow you between devices. Nothing is visible to
-anyone else until you publish it."
+**Requirement: account creation discloses sync *and the default audience*.**
+Signing up *is* the moment the user grants both, so it is the moment they must
+be told — one plain sentence at the point of decision, not a clause in a policy
+nobody opens. As shipped in `SignInView`:
+
+> "Your rankings are saved to your account, so they follow you between devices.
+> New accounts are public — anyone on Binged can see your ranking, and you can
+> make yours private at any time in Settings."
+
+The second half was added on 2026-08-26 with the removal of the publish opt-in.
+Before that, a new account published nothing until it said so; now it publishes
+by default, and a sentence that omitted the second half would make this a silent
+publication — the thing `PART-III-SOCIAL.md` §13 forbids.
 
 The real consent survives untouched, and it is stronger than a checkbox:
 **a user who wants nothing on a server does not make an account, and the app
@@ -264,6 +326,33 @@ Per the decision: **ranked and want-to-watch titles with a resolved
 `ranked_items_ranked_or_queued` constraint exists precisely so a queued entry is
 a legal row.
 
+> **The want-to-watch half was not actually built until 2026-08-27**, and the
+> way it was missing is worth recording, because every visible sign said it
+> worked. The constraint was there, `RemoteRankedItem.sentiment` was optional
+> and commented "nil for a want-to-watch entry", `LibraryRestoreService` decoded
+> a null sentiment as `.wantToWatch` rather than as a failure, and this section
+> said queued titles sync. The single missing piece was in the outbox:
+> `PendingPublish.key` took a non-optional `Sentiment`, so
+> `MediaLibraryViewModel.markDirty` opened with `guard let sentiment else
+> { return }` and every queue write left through it. Nothing was ever enqueued,
+> so nothing was ever written, so the restore code that was ready for those rows
+> never saw one.
+>
+> **Three symptoms, and the third is the one that cost data.** A watchlist that
+> did not restore on a second device. A Settings screen that counted the library
+> as fully backed up. And un-ranking a title — moving it from a sentiment back to
+> the watchlist — *deleted* it from the account, because the bucket it left was
+> republished with `except: keep` and nothing re-added it as a queue row.
+>
+> Fixed by giving the outbox a reserved `"queue"` marker rather than making the
+> column optional (a SwiftData version bump for a disposable bookkeeping table
+> is a bad trade — see `BingedSchema`), by sending `sentiment`, `score` and
+> `rank_in_bucket` as **explicit nulls** so an upsert actually clears them, and
+> by filtering `sentiment=not.is.null` on the profile read, since `RankedItem`
+> declares those three non-optional and one queued row would otherwise fail the
+> decode for a whole page. Pinned by `WatchlistSyncTests` and two wire-shape
+> tests.
+
 **Titles with a nil `externalId` stay on the device**, because the server has no
 key for them. This is a real gap, not a rounding error: sign in elsewhere and
 those titles are missing. The UI must say so plainly — `SyncEngine.unpublishableCount`
@@ -313,7 +402,7 @@ because after Part IV it does not.
 | 29 | Schema | ✅ `is_published`, `profiles.publishes_library`, the select policy, the inherit trigger, and both RPCs — plus `20260823010000`, which fixes a privilege revoke that silently did nothing. **`rls_test.sql`: 33/33 pass locally** |
 | 30 | Merge | ✅ `LibraryMerge` pure + 13 tests; `MediaItem.lastRankedAt` (no schema version — see below) |
 | 31 | Restore | ✅ `LibraryRestoreService` + mock, `LibraryRestorer` + 9 tests, restore-then-drain wired into `sessionChanged()` |
-| 32 | Publish control | ✅ per-bucket `is_published`, repointed consent sheet, `set_library_published` — built with the session that owns the consent flow |
+| 32 | Publish control | ✅ per-bucket `is_published`, repointed consent sheet, `set_library_published` — built with the session that owns the consent flow. **Removed entirely on 2026-08-26** (`20260826020000`); visibility is the account's privacy setting. See the amendment at the top |
 | 33 | Disclosure | ✅ sign-up sentence; `CLAUDE.md` "Do not" rewritten (signed off by the user); `PrivacyInfo.xcprivacy` corrected — see below; privacy-policy text drafted at [`PRIVACY-POLICY.md`](./PRIVACY-POLICY.md). **Outstanding: publishing it.** `SupportLinks.privacyPolicy` points at a URL that does not exist, and review follows that link |
 | 34 | Doc + QA | ✅ `PART-III-SOCIAL.md` §8 and open question 3 superseded; `MANUAL-QA.md` gained Journey 7i (two devices) and 7c's stale "blocked until the migration lands" note removed |
 

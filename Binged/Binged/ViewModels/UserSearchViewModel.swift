@@ -58,6 +58,18 @@ final class UserSearchViewModel {
     @ObservationIgnored private let service: SocialService
     @ObservationIgnored private var searchTask: Task<Void, Never>?
 
+    /// True while `search` is running, which includes the relationship read it
+    /// ends with. `refreshStates` stands down for it rather than issuing a
+    /// second read of the same people a few milliseconds later.
+    @ObservationIgnored private var isReading = false
+
+    /// People whose follow request is in flight from *this* screen.
+    ///
+    /// A refresh landing mid-toggle would overwrite the optimistic state with
+    /// the answer the server gave before the tap, putting "Follow" back on a
+    /// row the user has just pressed.
+    @ObservationIgnored private var togglesInFlight: Set<UUID> = []
+
     static let debounce = Duration.milliseconds(300)
     static let pageSize = 25
 
@@ -86,6 +98,9 @@ final class UserSearchViewModel {
     }
 
     private func search(_ needle: String) async {
+        isReading = true
+        defer { isReading = false }
+
         do {
             let found = try await service.searchUsers(query: needle, limit: Self.pageSize)
             guard !Task.isCancelled else { return }
@@ -175,6 +190,56 @@ final class UserSearchViewModel {
         }
     }
 
+    /// Re-reads the relationship with everybody currently on screen.
+    ///
+    /// `seedStates` deliberately reads only the people it has no answer for,
+    /// which is right while this screen is the only thing that can change one.
+    /// It is not: a row pushes the person's profile, and that screen has a
+    /// Follow button of its own backed by a *different* view model. Following
+    /// somebody there and coming back left this list rendering the state it was
+    /// seeded with — still offering "Follow" for an account the user had just
+    /// followed, and still offering it after the pop, because nothing here had
+    /// any reason to look again.
+    ///
+    /// So the results list calls this from `.task`, which runs when the list
+    /// appears *and again every time it comes back*, a push and a pop being
+    /// exactly that. Unlike the seed it overwrites what it already holds —
+    /// that is the entire point — and unlike the seed a failure changes
+    /// nothing, because a stale answer beats replacing a screenful of known
+    /// relationships with `.none`.
+    func refreshStates() async {
+        // The search task ends with a read of these same people; letting both
+        // run would mean two identical requests a few milliseconds apart.
+        guard !isReading, !results.isEmpty else { return }
+        let ids = results.map(\.id)
+
+        isReading = true
+        defer { isReading = false }
+
+        let found: [UUID: FollowState]
+        do {
+            found = try await service.followStates(for: ids)
+        } catch {
+            guard !Task.isCancelled else { return }
+            AppLog.network.error(
+                "Follow-state refresh failed: \(ErrorMessage.text(for: error), privacy: .public)"
+            )
+            // Only the people who have never been read at all: for everyone
+            // else what is on screen is a real answer, just an older one.
+            for id in ids where states[id] == nil { states[id] = FollowState.none }
+            stateReadFailed = true
+            return
+        }
+        guard !Task.isCancelled else { return }
+        stateReadFailed = false
+
+        for id in ids where !togglesInFlight.contains(id) {
+            // `FollowState.none` spelled out — see `seedStates` for what
+            // `?? .none` does to the key.
+            states[id] = found[id] ?? FollowState.none
+        }
+    }
+
     // MARK: Following
 
     func state(for user: UserProfile) -> FollowState {
@@ -203,6 +268,8 @@ final class UserSearchViewModel {
 
         let optimistic = current.next(targetIsPrivate: user.isPrivate)
         states[user.id] = optimistic
+        togglesInFlight.insert(user.id)
+        defer { togglesInFlight.remove(user.id) }
 
         do {
             if optimistic == .none {

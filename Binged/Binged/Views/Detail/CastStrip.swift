@@ -28,6 +28,14 @@ struct CastStrip: View {
     /// this view draws crew and cast with the same shape.
     let title: String
 
+    /// What to do when a face is tapped, or `nil` for a strip that only shows.
+    ///
+    /// Optional because this view draws crew as well as cast, and the screen
+    /// behind a person is built from `person/{id}/combined_credits` — a *cast*
+    /// filmography. Offering it for a director would open a page that answers a
+    /// question about their acting, which is usually nothing.
+    var onSelect: ((TitleDetails.Person) -> Void)?
+
     /// The crew credit, when there is one: "Directed by Bong Joon-ho".
     ///
     /// A line rather than a second strip. One director is one circle floating
@@ -50,7 +58,13 @@ struct CastStrip: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: Spacing.lg) {
                     ForEach(people) { person in
-                        personView(person)
+                        if let onSelect {
+                            Button { onSelect(person) } label: { personView(person) }
+                                .buttonStyle(.plain)
+                                .accessibilityHint("Shows what people you follow liked")
+                        } else {
+                            personView(person)
+                        }
                     }
                 }
                 .padding(.horizontal, 1) // keeps shadows from clipping
@@ -108,6 +122,7 @@ struct CastStrip: View {
             TitleDetails.Person(id: "4", name: "Choi Woo-shik", role: "Ki-woo"),
         ],
         title: "Cast",
+        onSelect: { _ in },
         subtitle: "Directed by Bong Joon-ho"
     )
     .padding()

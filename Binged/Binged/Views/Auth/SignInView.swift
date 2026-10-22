@@ -216,13 +216,22 @@ struct SignInView: View {
             // what having an account does — one plain sentence at the point of
             // decision, not a clause in a policy nobody opens.
             //
+            // **The second sentence is load-bearing and was added when the
+            // publish opt-in was removed.** A new account is public
+            // (`profiles.is_private` defaults to false), so this is now the
+            // only moment before the fact at which the app can say that other
+            // people will be able to read the ranking. Saying it here is what
+            // makes the default defensible; deleting it would leave a silent
+            // publication.
+            //
             // Deliberately a footer and not part of the toggle's label: the
             // toggle is the Terms gate (Guideline 3.1.2), it is load-bearing on
             // its own, and folding a second claim into it would make agreeing to
             // one mean agreeing to both. See `docs/PART-IV-SYNC.md` §5.
             Text("Your rankings are saved to your account, so they follow you "
-                 + "between devices. Nothing is visible to anyone else until "
-                 + "you choose to share it.")
+                 + "between devices. New accounts are public — anyone on Binged "
+                 + "can see your ranking, and you can make yours private at any "
+                 + "time in Settings.")
         }
     }
 

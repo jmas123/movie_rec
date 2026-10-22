@@ -306,16 +306,23 @@ struct ProfileView: View {
             } header: {
                 Text("Account")
             } footer: {
-                // Was: "Your rankings stay on this device. An account only
-                // adds the social features." Both halves were false once signed
-                // in — the library syncs to the account unconditionally, which
-                // is what makes a second device restore it — and this is
-                // exactly the stale copy that gets repeated into a privacy
-                // policy. Consent governs who *else* can see a bucket, not
-                // whether it is stored. See `docs/PART-IV-SYNC.md` §3.
-                Text("Your library is saved to your account so you can restore "
-                     + "it on another device. Who else can see it is a separate "
-                     + "choice, per bucket, and off until you say otherwise.")
+                // Rewritten twice, and both previous versions were false in
+                // the same direction — they told a signed-in user that
+                // something was staying put when it was not. First: "Your
+                // rankings stay on this device." Then: "Who else can see it is
+                // a separate choice, per bucket, and off until you say
+                // otherwise", which stopped being true when the publish opt-in
+                // was removed and visibility became the account's own privacy
+                // setting. This is the copy that gets repeated into a privacy
+                // policy, so it states the live state rather than a default.
+                // See `docs/PART-IV-SYNC.md` §3.
+                Text(session.profile?.isPrivate == true
+                     ? "Your library is saved to your account so you can restore "
+                       + "it on another device. Your account is private, so only "
+                       + "followers you have approved can see your ranking."
+                     : "Your library is saved to your account so you can restore "
+                       + "it on another device. Your account is public, so anyone "
+                       + "on Binged can see your ranking.")
             }
         }
     }

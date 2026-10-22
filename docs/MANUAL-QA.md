@@ -326,52 +326,76 @@ works with no account.
    flash its signed-out empty state on the way — sign-in is restored
    asynchronously, and `FeedView` keys its load on the session for this reason.
 
-### 7c. Sharing is opt-in; syncing is not
+### 7c. Who can see it is the account's privacy setting
 
 **Read this distinction before running the steps, because the pass/fail flips
-on it** (`PART-IV-SYNC.md` §3). A signed-in user's library goes to *their own
-account* unconditionally — that is what makes signing in on a second device
-restore it. What the consent sheet decides is whether anybody **else** can see
-it, and that answer travels as `is_published` on every row.
+on it** (`PART-IV-SYNC.md` §3 and the amendment atop that file). A signed-in
+user's library goes to *their own account* unconditionally — that is what makes
+signing in on a second device restore it. Who **else** can read it is decided by
+one thing and one thing only: whether the account is private.
+
+| Account | Who sees the ranking |
+|---|---|
+| public (`is_private = false`, the default for a new account) | any signed-in user |
+| private | accounts whose follow request the owner has **accepted** |
 
 So "did anything upload?" is the wrong question. The right ones are "can a
 second account see it?" and "did my own library survive?".
 
-> **No longer blocked.** All seven migrations are applied to the hosted project,
-> and the privilege state was verified directly on 2026-08-24: `authenticated`
-> holds INSERT and SELECT on `ranked_items.is_published` and **no UPDATE**. If a
-> publish fails now, suspect the client, not the schema — which is the reverse
-> of what this note used to say.
+> **Rewritten 2026-08-27.** This section used to script a separate publish
+> opt-in — a sharing sheet at first sign-in, **Show My Followers** and **Hide My
+> Ranking** buttons in Settings, and a per-bucket `is_published` column. All of
+> it was deleted (`20260826020000_visibility_follows_account_privacy.sql`,
+> applied to the hosted project the same day). **If you find any of those
+> controls in a build, that build predates the change** — it is not a pass and
+> not a fail, it is the wrong binary.
+>
+> Why it went: the sheet was gated on `publishableCount > 0`, so an account
+> created before it ranked anything — which is every new account — was never
+> asked, and two real test accounts ended up unable to see each other with
+> nothing on screen to explain it.
 
-1. With a library already ranked, sign in for the first time. **Expect:** the
-   sharing sheet — "Let followers see your ranking?" — stating a **count** of
-   titles. Check the count against what you have actually ranked.
-2. Choose **Keep it private**. **Expect:** from a second account, your profile
-   shows no ranking. From *your own* account, everything is intact.
-3. Settings → Sharing reads **Visible to followers: No**, and the footer still
-   says your account keeps your library. **A screen that reads "nothing is
-   uploaded" here is a bug** — that sentence was true before this change and is
-   false now.
-4. **The refusal must not have cost you the backup.** This is the whole point
-   of the inversion and needs a real check: sign out, sign back in on a second
-   simulator, and confirm your ranking restores. Until the restore path exists
-   (`PART-IV-SYNC.md` phase 31), check the `ranked_items` rows in the Supabase
-   dashboard instead — they must be there, with `is_published = false`.
-5. Now tap **Show My Followers**. **Expect:** the second account sees the whole
-   ranking, including titles ranked *before* you answered.
-6. Check that untracked titles, and titles with no `externalId`, are absent.
-   Settings states that second count in words; it must match what is missing.
-7. **Hide My Ranking.** Confirm the alert, then check from the second account
-   that the ranking is gone — and in the dashboard that **the rows are still
-   there** with `is_published = false`. Hiding that deletes rows is a data-loss
-   bug, not a tidy implementation.
-8. **A second account on the same phone is asked again.** Sign out, sign into
-   another account, and expect the sheet — never an inherited answer.
-9. **Mid-comparison is not sent.** Start ranking a title into a non-empty bucket
-   and leave the comparison modal open. Nothing should sync while it is open;
-   finishing it should send the whole bucket at once. This is the one case where
-   "nothing happened" is the pass.
-10. **Offline.** Airplane mode, rank a title. The comparison flow runs at local
+Two accounts, A and B, neither following the other yet.
+
+1. **A new account is public and says so.** Sign up as A. **Expect:** the
+   sign-up footer states both halves — that rankings are saved to the account,
+   *and* that new accounts are public. A screen that mentions only the first is
+   a silent publication and is a bug.
+2. **No sheet.** Nothing asks permission to share, at sign-in or afterwards.
+   "Nothing happened" is the pass.
+3. **Rank, then look from outside.** With A signed in, rank at least five films
+   so a bucket has earned a score. From B, open A's profile by handle.
+   **Expect:** the ranking is there — with no action taken by A beyond ranking.
+   Scores appear only for buckets holding
+   `minimumBucketSizeForScore` titles; smaller buckets show a position instead.
+4. **Settings reports the rule, and does not offer a second switch.** On A,
+   Settings → Sharing reads **Your ranking: Anyone on Binged**, a count of
+   titles others can see, and a link to **Account Privacy**. There is no
+   publish/hide button. The footer must not claim anything "stays on this
+   device" while signed in.
+5. **Private closes it.** On A: Edit Profile → Private account → Save. From B,
+   reload A's profile. **Expect:** the padlock state — "This account is private.
+   Follow to see their ranking." Settings on A now reads **Followers only**.
+6. **A pending follow grants nothing.** From B, tap Follow. **Expect:**
+   `Requested`, and A's ranking still hidden. Approval is the gate, not the
+   request (pinned by `rls_test.sql` assertion 8).
+7. **Approval opens it.** On A, accept the request from the follow-requests
+   inbox. From B, reload. **Expect:** the whole ranking, including titles ranked
+   before the follow existed.
+8. **Going private hid rows; it did not delete them.** In the Supabase
+   dashboard, A's `ranked_items` rows are all still present through steps 5–7.
+   Hiding that deletes rows is a data-loss bug, not a tidy implementation.
+9. **The backup is unconditional.** Sign A out and back in on a second
+   simulator; the ranking restores. This must hold in *both* privacy states —
+   privacy governs other people's access, never whether the account keeps a
+   copy.
+10. **Titles with no `externalId` are absent, and Settings says so.** Check the
+    count in words against what is missing from B's view.
+11. **Mid-comparison is not sent.** Start ranking a title into a non-empty
+    bucket and leave the comparison modal open. Nothing should sync while it is
+    open; finishing it should send the whole bucket at once. This is the one
+    case where "nothing happened" is the pass.
+12. **Offline.** Airplane mode, rank a title. The comparison flow runs at local
     speed. Turn the network back on without touching the app: the sync should
     drain on its own.
 
@@ -446,13 +470,12 @@ threshold. Publishing goes to `MockPublishTransport` and reaches nothing.
 2. Open a post: the thread, "Comment deleted" in place, and a working composer.
 3. Tap through to a profile: Mina's shows scores, Devon's shows positions only,
    Sasha's reads as private.
-4. The sharing sheet appears at launch, over your real library, with your real
-   count. Answer it either way and check Settings reflects the answer. Note the
-   fixture's transport reaches nothing, so this proves the copy and the wiring,
-   never the schema.
-
-The fixture's viewer id is new on every launch, so it asks again every time —
-that is the per-account rule working, not a bug.
+4. Settings → Sharing renders against your real library: the audience your
+   account's privacy setting implies, a real count of titles others can see, and
+   a link to Account Privacy. **No sheet appears at launch** — the publish
+   opt-in was removed on 2026-08-26, and a build that still asks is the wrong
+   binary. The fixture's transport reaches nothing, so this proves the copy and
+   the wiring, never the schema.
 
 ### 7i. Two devices — the thing Part IV exists for
 
@@ -472,32 +495,47 @@ score, and queue two more. Confirm they reach the account (7c).
    sentiment buckets, in the right order, and the queue too. Scores are
    *recomputed locally*, so check they sit inside the right band rather than
    expecting the exact numbers from A.
-2. **Nothing was lost on the way.** Count titles on B against A. A title that
+
+   **Count the watchlist explicitly, against A.** It shipped unsynced until
+   2026-08-27 — the outbox could not name a bucket with no sentiment, so the
+   queue never left the device while everything around it worked — and this step
+   read as passing throughout, because the ranked titles it names *did* come
+   back. A watchlist that is short by any number is a regression of that bug.
+2. **Un-rank a title, then check B again.** On A, move a ranked title back to
+   the watchlist. **Expect:** on B it appears on the watchlist. It must not
+   vanish: before the fix the bucket it left was republished without it and
+   nothing re-added it, so un-ranking deleted the title from the account
+   outright.
+3. **Nothing was lost on the way.** Count titles on B against A. A title that
    never had an `externalId` will be missing, and the app should **say so**
    rather than leave a silent gap — that is `unsyncableCount` surfacing. A gap
    with no explanation is a bug; a stated one is the design.
-3. **Merge, not replace.** On B, before signing in, rank two films A has never
+4. **Merge, not replace.** On B, before signing in, rank two films A has never
    seen. *Then* sign in. **Expect:** B ends with both libraries. Nothing from
    either side is discarded. This is the single most important assertion in this
    journey — the failure it guards is a device quietly overwriting an account.
-4. **Position disagreements resolve silently.** Reorder a bucket on A, let it
+5. **Position disagreements resolve silently.** Reorder a bucket on A, let it
    sync, then foreground B. **Expect:** B follows, with no prompt. Position is
    derived, never chosen (rule 4), so there is nothing to ask about.
-5. **Sentiment disagreements take the newest deliberate act.** Re-rate one film
+6. **Sentiment disagreements take the newest deliberate act.** Re-rate one film
    Liked → Fine on B. Then, on A *without* letting it sync first, re-rate the
    same film Liked → Didn't like it. Foreground both. **Expect:** the later
    re-rate wins on both devices. A stale device must not overwrite a newer
    decision — that is `lastRankedAt` against the row's `updated_at`.
-6. **Both buckets rescore.** After step 5, check the bucket the film *left* as
+7. **Both buckets rescore.** After step 6, check the bucket the film *left* as
    well as the one it joined. Scores in the vacated bucket must have recomputed
    for its new size. This is the vacated-bucket bug with a network in the
    middle, and it is the one most likely to be wrong.
-7. **An unreachable account is not an empty one.** Put B in airplane mode and
+8. **An unreachable account is not an empty one.** Put B in airplane mode and
    sign in. **Expect:** an explicit "could not reach your account" message and
    an **unchanged** local library. What must never happen: B treating the
    failure as an empty account and pushing itself over A's library. If B ends up
    with fewer titles than it started with, stop and report it.
-8. **Sharing survives a merge.** With sharing on, rank a title in a bucket B has
-   never published. **Expect:** it is visible to a second account. A bucket that
-   arrives by merge must adopt the account's standing answer, not default to
-   private — the failure mode is "sometimes my shows don't show up".
+9. **Visibility survives a merge.** Rank a title in a bucket B has never sent
+   before. **Expect:** a second account sees it, with no further step. This used
+   to be the test of a per-bucket publication flag adopting the account's
+   standing answer; since that flag was removed there is nothing for a new
+   bucket to adopt or fail to adopt, and the assertion is simply that a merged
+   bucket is as visible as any other. The failure mode it still guards —
+   "sometimes my shows don't show up" — would now mean the bucket never
+   published at all.

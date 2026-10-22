@@ -102,7 +102,20 @@ actor SupabaseClient {
     private func sendData(_ request: Request) async throws -> Data {
         guard configuration != nil else { throw SupabaseError.notConfigured }
 
-        let generation = sessionGeneration
+        var generation = sessionGeneration
+
+        // **Refresh before sending, not after being told off.** An access token
+        // already past its expiry earns a 401 for certain, and every one of
+        // those is a round trip spent to learn something the clock already knew.
+        // Worse, it puts the refresh on the *failure* path, where a burst of
+        // requests all discover the same dead token at once — the situation
+        // rotation punishes hardest. `SupabaseSession.isExpired` carries a
+        // minute of leeway so a token cannot die in flight either.
+        if !request.anonymous, tokens.load()?.isExpired() == true {
+            _ = try await refreshSession(startedAtGeneration: generation)
+            generation = sessionGeneration
+        }
+
         do {
             return try await perform(request)
         } catch SupabaseError.unauthorized {
@@ -220,15 +233,31 @@ actor SupabaseClient {
             do {
                 (data, response) = try await session.data(for: request)
             } catch {
+                // Never reached the server. Says nothing about the credential.
                 throw SupabaseError.transport(String(describing: error))
             }
-            guard let http = response as? HTTPURLResponse,
-                  (200...299).contains(http.statusCode) else {
+            guard let http = response as? HTTPURLResponse else {
+                throw SupabaseError.transport("Not an HTTP response")
+            }
+            switch http.statusCode {
+            case 200...299:
+                break
+            case 400, 401, 403:
+                // GoTrue rejects a spent or revoked refresh token with 400
+                // (`invalid_grant`) or 401. This is the only answer that means
+                // the session is genuinely over.
                 throw SupabaseError.unauthorized
+            default:
+                // 429, 500, 502, a gateway page from a proxy — the server is
+                // unwell, not the token.
+                throw SupabaseError.http(status: http.statusCode,
+                                         message: Self.message(from: data))
             }
             guard let token = try? Self.decoder.decode(AuthTokenResponse.self, from: data),
                   let refreshed = token.session else {
-                throw SupabaseError.unauthorized
+                // A 200 nobody can parse. Keep the session and try again later
+                // rather than signing out over a response shape.
+                throw SupabaseError.decoding("Unreadable refresh response")
             }
             return refreshed
         }
@@ -240,9 +269,22 @@ actor SupabaseClient {
             let refreshed = try await task.value
             store(refreshed)
             return refreshed
-        } catch {
+        } catch let error as SupabaseError where error.shouldSignOut {
             signOutLocally()
-            throw SupabaseError.unauthorized
+            throw error
+        } catch {
+            // **The session survives.** This used to clear the Keychain on any
+            // failure at all, which meant a refresh attempted on a train, in a
+            // lift, or during a Supabase blip deleted the refresh token — and
+            // the user, who had done nothing but open the app, was signed out
+            // for good. Only the server gets to end a session; a network that
+            // could not be reached has not said anything.
+            //
+            // The error propagates as itself (`transport`, `http`) rather than
+            // as `unauthorized`, so callers show "could not reach the server"
+            // instead of "your session has expired", and so nothing downstream
+            // mistakes a bad minute for a dead credential.
+            throw error
         }
     }
 

@@ -85,6 +85,14 @@ struct MediaDetailView: View {
     @Environment(\.rankingFeedService) private var rankingFeed
     @State private var watchers = TitleWatchersViewModel()
 
+    /// The cast member whose filmography is on screen, or `nil` for none.
+    ///
+    /// A sheet rather than a push — `CastMemberView` explains why at length,
+    /// and the short version is that this screen is reached from six places,
+    /// several of them through a closure-based link where a value-based push
+    /// from here would silently do nothing.
+    @State private var selectedCastMember: TitleDetails.Person?
+
     var body: some View {
         ScrollView {
             // Two nested stacks because the header is full-bleed and the rest
@@ -117,7 +125,12 @@ struct MediaDetailView: View {
                         )
                     }
                     if let details, !details.cast.isEmpty {
-                        CastStrip(people: details.cast, title: "Cast", subtitle: creditLine)
+                        CastStrip(
+                            people: details.cast,
+                            title: "Cast",
+                            onSelect: { selectedCastMember = $0 },
+                            subtitle: creditLine
+                        )
                     } else if let creditLine {
                         // No cast came back but the director did — still worth
                         // a line, and cheaper than an empty strip.
@@ -171,6 +184,9 @@ struct MediaDetailView: View {
         }
         .sheet(isPresented: $showReviewSheet) {
             reviewSheet
+        }
+        .sheet(item: $selectedCastMember) { person in
+            CastMemberView(person: person)
         }
     }
 

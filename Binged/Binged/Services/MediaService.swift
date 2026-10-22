@@ -57,6 +57,20 @@ protocol MediaService {
     ///   services are reported. Passed in rather than read from `Locale` inside
     ///   an implementation so a test can pin it.
     func titleDetails(id: String, region: String) async -> TitleDetails?
+
+    /// Everything a cast member has been in, most prominent first.
+    ///
+    /// Takes the catalog's own person id — the one `TitleDetails.Person`
+    /// carries — rather than a name, because two actors share a name often
+    /// enough that resolving one by search would sometimes show the wrong
+    /// person's filmography with no way to tell.
+    ///
+    /// Returns detached `MediaItem`s, like `search`: the caller decides whether
+    /// any of them is already in the library. Takes no error path, like
+    /// `titleDetails`, and for the same reason — the screen it feeds says
+    /// "nobody you follow liked anything of theirs" when the answer is empty,
+    /// and an unreachable catalog is not worth a different sentence.
+    func personCredits(id: String) async -> [MediaItem]
 }
 
 // MARK: - Default catalog enumeration
@@ -77,5 +91,13 @@ extension MediaService {
     /// the screen as it was before this existed.
     func titleDetails(id: String, region: String) async -> TitleDetails? {
         nil
+    }
+
+    /// Conformers with no catalog to enumerate — the search-only stubs, and the
+    /// bundled `MockMediaService`, which has no cast data to be a filmography
+    /// *of* — report nothing. The screen reads that as "no credits", which is
+    /// the truthful answer from a catalog that has none.
+    func personCredits(id: String) async -> [MediaItem] {
+        []
     }
 }

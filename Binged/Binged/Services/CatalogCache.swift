@@ -205,6 +205,14 @@ enum CatalogCacheKey {
         "display:\(TMDBIdentifier.segment(for: type)):\(tmdbId)"
     }
 
+    /// A person's filmography. Keyed on the person rather than on a title, so
+    /// it shares nothing with the four keys above — the payload is a different
+    /// endpoint entirely, and a working actor's credits change on their own
+    /// slow schedule.
+    static func personCredits(tmdbId: Int) -> String {
+        "person-credits:\(tmdbId)"
+    }
+
     /// Keyed by the IMDb id alone: `/find` is a pure lookup and its answer does
     /// not depend on what the caller expected the type to be.
     static func find(imdbID: String) -> String {

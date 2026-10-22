@@ -276,6 +276,19 @@ enum TMDBEndpoint {
         )
     }
 
+    /// Everything one person has been in, film and television together.
+    ///
+    /// `combined_credits` rather than `movie_credits` and `tv_credits`: the app
+    /// ranks both types and the cast strip appears on both kinds of detail
+    /// screen, so splitting it would be two round trips to rebuild one list.
+    ///
+    /// The response carries a `cast` array and a `crew` array of the same
+    /// title shape; the app reads the former. Each entry carries `media_type`,
+    /// which is what lets `TMDBTitleDTO` map it without being told the type.
+    static func personCredits(personId: Int) -> URL? {
+        url(path: "person/\(personId)/combined_credits")
+    }
+
     /// Resolves an external id — here always an IMDb id — to TMDB's own.
     /// The response splits results by media type, which is what lets the
     /// migration insist a film resolves to a film.

@@ -35,18 +35,22 @@ Binged/Binged/
   Services/        (29)  RankingEngine (pure), MediaService + TMDB*,
                          RecommendationEngine, CandidatePoolBuilder,
                          AuthService, SocialService, FeedService,
-                         SyncEngine + PublishConsent, LibraryMerge (pure),
+                         SyncEngine, LibraryMerge (pure),
                          LibraryRestoreService, LibraryRestorer,
                          Supabase/ (5), and a Mock… sibling for every protocol
   Resources/             MockMedia.json
   PrivacyInfo.xcprivacy
 supabase/
-  migrations/      (10)  social, moderation, client_rpcs, follow_list_rpcs,
+  migrations/      (13)  social, moderation, client_rpcs, follow_list_rpcs,
                          library_sync, fix_is_published_privileges, blocked_accounts,
-                         reserve_binge_handle, reserve_binged_handle, comment_editing
-                         — the last three are written and NOT pushed; see
+                         reserve_binge_handle, reserve_binged_handle, comment_editing,
+                         title_watchers, content_filter,
+                         visibility_follows_account_privacy
+                         — all thirteen applied to the hosted project as of
+                         2026-08-27. Check with `supabase migration list` rather
+                         than trusting this line; see
                          docs/MANUAL-VERIFICATION.md §7
-  tests/rls_test.sql     33 pgTAP assertions, mostly negative
+  tests/rls_test.sql     41 pgTAP assertions, mostly negative
   tests/comment_editing_test.sql
                          10 more, on who may rewrite a comment
 ```
@@ -105,16 +109,18 @@ xcodebuild -scheme Binged -destination 'platform=iOS Simulator,name=iPhone 16' t
 
 - Do not add third-party libraries or Swift Package Manager dependencies.
 - **Network code lives behind a protocol in `Services/`, always.** TMDB is the live catalog (Part II, Phase 12) behind `MediaService`; Supabase is auth and the social graph (Part III, Phases 20+) behind `AuthService` and `SocialService`, and library sync (Part IV) behind `PublishTransport`. Nothing outside `Services/` may know a URL exists, and every one of them has a `Mock…` sibling so no test touches the network.
-- ~~User data stays local-only and never leaves the device.~~ ~~No longer true from Phase 23: *published* data goes to Supabase.~~ **Rewritten again for Part IV — read this one carefully, because the previous two versions are the kind of stale privacy copy that gets repeated into a privacy policy.**
+- ~~User data stays local-only and never leaves the device.~~ ~~No longer true from Phase 23: *published* data goes to Supabase.~~ ~~Rewritten for Part IV: sync is unconditional, `is_published` gates the audience.~~ **Rewritten a third time on 2026-08-26 — read this one carefully, because all three previous versions are the kind of stale privacy copy that gets repeated into a privacy policy.**
 
-  **While signed in, the whole ranked library goes to the user's own account — always, with no opt-in.** That is what makes signing in on a second device restore it. Consent does *not* gate whether data reaches the server; it gates `is_published`, which decides whether anybody **else** can see it. The two questions are different and must never be worded as one (`docs/PART-IV-SYNC.md` §3).
+  **While signed in, the whole ranked library goes to the user's own account — always, with no opt-in.** That is what makes signing in on a second device restore it.
+
+  **Who else can read it is the account's own privacy setting, and nothing else.** Public account (the default): any signed-in user. Private account: accounts whose follow request the owner has accepted. The same setting governs the feed, the profile and the ranking together — there is no separate publish switch, and the one that existed was removed because two switches for one question left accounts invisible to each other with nothing on screen to explain it (`docs/PART-IV-SYNC.md`, amendment 2026-08-26).
 
   So the honest inventory is:
   - **Never leaves the device, ever:** items with a nil `externalId` (nothing to key them to), and everything at all while signed out.
   - **Goes to the user's own account, unconditionally, once signed in:** every watched, ranked item with an `externalId`.
-  - **Visible to other people only after an explicit yes:** the same rows, once `is_published` is true. Default false, per bucket, all-or-nothing.
+  - **Readable by other people:** the same rows, according to `profiles.is_private`. **A new account is public**, so the default is that other people can read it.
 
-  Two consequences for anything you write. **Never tell the user their ranking "stays on this device" when they are signed in** — it is false, and a consent sheet that says it is trading a false statement for a yes. Sync is disclosed at account creation instead. And **withdrawing consent hides rows; it never deletes them** — deleting would destroy the backup the user did not ask to lose.
+  Three consequences for anything you write. **Never tell the user their ranking "stays on this device" when they are signed in** — it is false. **Never tell them nothing is visible "until you choose to share it"** — that was true under the old flag and is now equally false; both sentences shipped, and both had to be found and rewritten. Sync *and* the default audience are disclosed together at account creation, in `SignInView`. And **making an account private hides rows; it never deletes them** — deleting would destroy the backup the user did not ask to lose.
 - **Do not let the social layer touch the ranking mechanic.** `RankingEngine` stays pure, synchronous and local; scores stay derived from bucket position; the comparison flow never awaits a network call; and the entire app stays usable signed out. These are invariants, not preferences (`PART-III-SOCIAL.md` §2).
 - **Do not trust the client for authorisation.** The Supabase anon key ships in the bundle by design and carries no privilege — row-level security in Postgres is the whole security boundary. Any rule the app enforces must also exist as a policy, or it does not exist.
 - Do not let the user enter a numeric rating directly. Scores are derived from bucket position.

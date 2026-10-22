@@ -2,23 +2,24 @@
 //  SupabasePublishTransportTests.swift
 //  BingedTests
 //
-//  The wire shape of publishing, against two hazards that a behavioural test
-//  cannot see because both are about what the *request* contains.
+//  The wire shape of publishing, against a hazard a behavioural test cannot
+//  see because it is about what the *request* contains.
 //
-//  1. **`is_published` must not appear in the upsert body.** The upsert is a
-//     PostgREST `resolution=merge-duplicates`, which becomes
-//     `INSERT … ON CONFLICT DO UPDATE SET` over every column sent — and
-//     `update (is_published)` is revoked from `authenticated`
-//     (`20260823000000_library_sync.sql`). Sending it would insert the first
-//     row of a bucket happily and then fail 42501 on every later drain that
-//     touched an existing row, which is every drain after the first. The
-//     failure needs no client bug and no unusual state; it needs a second
-//     ranking.
+//  **The upsert body may name only columns `authenticated` may UPDATE.** The
+//  upsert is a PostgREST `resolution=merge-duplicates`, which becomes
+//  `INSERT … ON CONFLICT DO UPDATE SET` over every column sent — and UPDATE on
+//  `ranked_items` is granted column by column rather than table-wide
+//  (`20260823010000_fix_is_published_privileges.sql`). A column in the payload
+//  that is not in that grant inserts a bucket's first row happily and then
+//  fails 42501 on every later drain that touches an existing one, which is
+//  every drain after the first. The failure needs no client bug and no unusual
+//  state; it needs a second ranking.
 //
-//  2. **Changing visibility must be the RPC, not a PATCH.** Same revoke. A
-//     direct `PATCH …?user_id=eq.<id>` reads as the obvious implementation and
-//     is refused by the database on purpose, so that no client can flip one row
-//     and leave a bucket half-visible.
+//  Asserted as a subset rather than as an exact list, because that is the shape
+//  of the rule: adding a column the grant already covers is fine, and adding one
+//  it does not is the bug. `is_published` — the column this test was originally
+//  written for — no longer exists at all; visibility is the account's privacy
+//  setting now (`20260826020000_visibility_follows_account_privacy.sql`).
 //
 
 import Foundation
@@ -66,8 +67,25 @@ private func makePayload() -> PublishPayload {
 @Suite("SupabasePublishTransport wire shape")
 struct SupabasePublishTransportTests {
 
-    @Test("The upsert body never carries is_published")
-    func upsertOmitsTheRevokedColumn() async throws {
+    /// Every column `20260823010000` grants UPDATE on, by name.
+    /// A queued title: watched-status `.wantToWatch`, and so no sentiment,
+    /// score or rank.
+    private func makeQueuedPayload() -> PublishPayload {
+        let item = MediaItem(
+            externalId: "tmdb:movie:2", title: "Sinners", year: 2025, type: .movie
+        )
+        item.watchedStatus = .wantToWatch
+        return PublishPayload(mediaType: .movie, sentiment: nil, bucket: [item])
+    }
+
+    private static let grantable: Set<String> = [
+        "user_id", "media_type", "external_id", "title", "year", "poster_path",
+        "sentiment", "score", "rank_in_bucket", "bucket_size", "review",
+        "date_watched", "updated_at",
+    ]
+
+    @Test("The upsert body names only columns the client may write")
+    func upsertNamesOnlyGrantableColumns() async throws {
         let captured = Captured()
         let configuration = makeSupabaseConfiguration()
         let client = makeSupabaseClient(configuration: configuration) { request in
@@ -84,60 +102,65 @@ struct SupabasePublishTransportTests {
         )
         let row = try #require(json.first)
 
-        #expect(row["is_published"] == nil, "the column is revoked; sending it 42501s on upsert")
-        // The rest of the row is still expected to be there — this is an
-        // omission, not an empty payload.
+        let ungranted = Set(row.keys).subtracting(Self.grantable)
+        #expect(ungranted.isEmpty, "not granted to `authenticated`; 42501s on upsert: \(ungranted)")
+        // And the row is still a row — this is an omission test, not an
+        // assertion that the payload may be empty.
         #expect(row["external_id"] as? String == "tmdb:movie:1")
         #expect(row["bucket_size"] as? Int == 1)
     }
 
-    @Test("Changing visibility calls the RPC, never a PATCH on the table")
-    func visibilityGoesThroughTheRPC() async throws {
+    @Test("A queued row sends explicit nulls, not omitted columns")
+    func queuedRowSendsNulls() async throws {
         let captured = Captured()
         let configuration = makeSupabaseConfiguration()
         let client = makeSupabaseClient(configuration: configuration) { request in
             captured.record(request)
-            return .ok(Data("1".utf8))
+            return .ok(Data())
         }
         let transport = SupabasePublishTransport(client: client, configuration: configuration)
 
-        try await transport.setPublished(true, userID: UUID())
+        try await transport.publish(makeQueuedPayload(), userID: UUID())
 
-        let request = try #require(captured.all.first)
-        #expect(request.method == "POST")
-        #expect(request.path.hasSuffix("/rest/v1/rpc/set_library_published"))
-
+        let upsert = try #require(captured.first { $0.method == "POST" })
         let json = try #require(
-            try JSONSerialization.jsonObject(with: request.body) as? [String: Any]
+            try JSONSerialization.jsonObject(with: upsert.body) as? [[String: Any]]
         )
-        #expect(json["p_published"] as? Bool == true)
-        // The function authorises on auth.uid() alone. A user parameter would
-        // be a shape of call that could name somebody else's library.
-        #expect(json["user_id"] == nil)
+        let row = try #require(json.first)
 
-        let patches = captured.all.filter { $0.method == "PATCH" }
-        #expect(patches.isEmpty, "a direct PATCH of is_published is refused by the database")
+        // **Present-and-null, not absent.** PostgREST compiles the upsert into
+        // ON CONFLICT DO UPDATE SET over the columns in the body, so an omitted
+        // column keeps its old server value — a title moved from "Liked it" to
+        // the watchlist would keep the ranking it just left. `JSONSerialization`
+        // renders an explicit null as `NSNull`, and a missing key as nil, which
+        // is exactly the distinction being asserted.
+        for column in ["sentiment", "score", "rank_in_bucket"] {
+            #expect(row[column] is NSNull, "\(column) was omitted rather than nulled")
+        }
+        #expect(row["external_id"] as? String == "tmdb:movie:2")
     }
 
-    @Test("Unpublishing sends false rather than deleting anything")
-    func unpublishingIsNotADelete() async throws {
+    @Test("Emptying the queue filters on is.null, never eq.null")
+    func queueDeleteUsesIsNull() async throws {
         let captured = Captured()
         let configuration = makeSupabaseConfiguration()
         let client = makeSupabaseClient(configuration: configuration) { request in
             captured.record(request)
-            return .ok(Data("3".utf8))
+            return .ok(Data())
         }
         let transport = SupabasePublishTransport(client: client, configuration: configuration)
 
-        try await transport.setPublished(false, userID: UUID())
+        try await transport.deleteBucket(mediaType: .movie, sentiment: nil, userID: UUID())
 
-        let json = try #require(
-            try JSONSerialization.jsonObject(with: captured.all[0].body) as? [String: Any]
-        )
-        #expect(json["p_published"] as? Bool == false)
+        let delete = try #require(captured.first { $0.method == "DELETE" })
+        let query = delete.query.removingPercentEncoding ?? delete.query
 
-        let deletes = captured.all.filter { $0.method == "DELETE" }
-        #expect(deletes.isEmpty, "hiding a library must never delete the owner's rows")
+        // SQL comparison with null is null, so `sentiment=eq.null` matches no
+        // row: the DELETE would succeed, report success, and delete nothing.
+        // Nothing downstream would notice — the outbox row is cleared either
+        // way — and the account would keep watchlist entries forever.
+        #expect(query.contains("sentiment=is.null"))
+        #expect(!query.contains("eq.null"))
     }
 }
 
@@ -147,6 +170,10 @@ private final class Captured: @unchecked Sendable {
     struct Entry {
         let method: String
         let path: String
+        /// The raw query string. The difference between a DELETE that empties
+        /// the watchlist and one that silently matches nothing lives here and
+        /// nowhere else.
+        let query: String
         let body: Data
     }
 
@@ -157,6 +184,7 @@ private final class Captured: @unchecked Sendable {
         let entry = Entry(
             method: request.httpMethod ?? "",
             path: request.url?.path ?? "",
+            query: request.url?.query ?? "",
             body: body(of: request)
         )
         lock.lock(); entries.append(entry); lock.unlock()

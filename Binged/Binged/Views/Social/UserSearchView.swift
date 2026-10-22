@@ -113,6 +113,12 @@ struct UserSearchResults: View {
                 )
             }
             .listStyle(.plain)
+            // Runs when the list appears and again every time it comes back,
+            // which is what a push and a pop are. Without it a row kept the
+            // state it was seeded with, so following somebody from *their
+            // profile* — a different screen, a different view model — left this
+            // row still offering Follow after the pop.
+            .task { await viewModel.refreshStates() }
         }
     }
 }

@@ -693,6 +693,21 @@ struct TMDBProviderDTO: Codable {
     }
 }
 
+// MARK: - Person credits
+
+/// `/person/{id}/combined_credits`.
+///
+/// Both arrays hold the same title shape `/search/multi` returns, `media_type`
+/// included — which is why this is four lines rather than a parallel hierarchy.
+/// `crew` is decoded and unused: it costs nothing, and leaving it out of the
+/// type would make "does this actor's directing show up here?" a question that
+/// has to be answered by reading TMDB's docs rather than this file. It does
+/// not; the app reads `cast`.
+struct TMDBPersonCreditsDTO: Codable {
+    let cast: [TMDBTitleDTO]?
+    let crew: [TMDBTitleDTO]?
+}
+
 // MARK: - Identifiers
 
 /// TMDB ids are only unique **within** a media type: movie 1396 and TV 1396

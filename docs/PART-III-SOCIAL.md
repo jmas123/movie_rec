@@ -280,10 +280,12 @@ queue survives a crash.
 section changed:
 
 1. **The server is no longer a published projection of the device.** It holds
-   the user's whole library, unconditionally once signed in, and `is_published`
-   decides separately what other accounts can see. "What leaves the device"
-   above still holds for a signed-out user and for nil-`externalId` titles; it
-   no longer holds for the published/unpublished distinction.
+   the user's whole library, unconditionally once signed in, and who else may
+   read it is decided by the owner's `is_private` setting. "What leaves the
+   device" above still holds for a signed-out user and for nil-`externalId`
+   titles; it no longer holds for the published/unpublished distinction.
+   (Until 2026-08-26 the audience was a separate per-row `is_published` flag;
+   see the amendment atop `PART-IV-SYNC.md`.)
 2. **Multi-device is supported rather than assumed away.** Sign-in restores the
    account's library and merges it with the device's, keyed on `externalId`.
    Nothing is discarded. A *sentiment* disagreement is resolved by the newest
@@ -434,6 +436,20 @@ release blockers. Phase 28 exists for these and should not be compressed.
   updating an existing local library must not silently upload it. Signed out is
   the default state; publishing starts when an account is created and the user
   is told what becomes visible.
+
+  **Amended 2026-08-26, and the amendment is narrower than it looks.** There is
+  no longer a separate publish opt-in: a signed-in account's ranking is readable
+  by whoever its `is_private` setting allows, which for a new account is anyone
+  signed in (`PART-IV-SYNC.md`, amendment). Two halves of this rule survive
+  intact and are the reason it is not simply deleted. **Signed out is still the
+  default state** — no account, nothing uploaded, the app fully usable — so an
+  existing local library is still never silently uploaded by an update. And
+  **the user is still told what becomes visible, at account creation**, which is
+  now the only place they are told; the sentence in `SignInView` names the
+  default audience for exactly this reason. What changed is that the decision is
+  the account's privacy setting rather than a switch that only governed the
+  ranking. What did not change is that a decision is made and disclosed before
+  anything is visible.
 - **A private account is not a security feature if RLS says otherwise.**
   `is_private` must gate reads in policy, tested per section 12.
 

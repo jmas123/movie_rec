@@ -19,8 +19,8 @@ struct SettingsView: View {
 
     @Environment(MediaLibraryViewModel.self) private var library
     @Environment(SessionViewModel.self) private var session
-    /// Absent on a build with no server. The publishing section then has
-    /// nothing true to say and does not appear.
+    /// Absent on a build with no server. The sharing section then has nothing
+    /// true to say and does not appear.
     @Environment(SyncEngine.self) private var sync: SyncEngine?
     @Environment(LibraryRestorer.self) private var restorer: LibraryRestorer?
 
@@ -30,13 +30,7 @@ struct SettingsView: View {
 
     @State private var exportURL: URL?
     @State private var showDeleteConfirmation = false
-    @State private var showUnpublishConfirmation = false
     @State private var isDeleting = false
-    @State private var isWithdrawing = false
-    /// Set when consent was withdrawn but the removal did not land. Publishing
-    /// is off either way; what is already on the server is not, and the user is
-    /// owed a way to try again rather than a promise that something will.
-    @State private var removalFailed = false
     @State private var errorMessage: String?
     @State private var showSignIn = false
 
@@ -44,7 +38,7 @@ struct SettingsView: View {
         List {
             accountSection
             restoreSection
-            publishingSection
+            sharingSection
             dataSection
             safetySection
             aboutSection
@@ -62,14 +56,6 @@ struct SettingsView: View {
             Text("This permanently deletes your profile, published rankings, "
                  + "comments and follows. **Your library on this device is kept** "
                  + "and stays usable signed out.")
-        }
-        .alert("Hide your ranking?", isPresented: $showUnpublishConfirmation) {
-            Button("Cancel", role: .cancel) {}
-            Button("Hide", role: .destructive) { Task { await stopPublishing() } }
-        } message: {
-            Text("Your followers will no longer see any of your rankings. "
-                 + "**Nothing is deleted** — your account keeps your library, so "
-                 + "signing in on another device still restores it.")
         }
         .alert("Something went wrong", isPresented: .constant(errorMessage != nil)) {
             Button("OK") { errorMessage = nil }
@@ -111,18 +97,91 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: Publishing
+    // MARK: Sharing
 
     /// Who can see the ranking, and what is still on its way up.
     ///
     /// **This section is about an audience, not about a network.** The library
-    /// syncs to the account regardless; saying "publishing: off" must not be
-    /// read as "nothing is uploaded", so the footer says which is which.
+    /// syncs to the account regardless; a private account is not an unsynced
+    /// one, so the footer says which is which.
+    ///
+    /// **It reports the rule rather than offering a second switch.** Visibility
+    /// is `profiles.is_private` and nothing else — the same setting that governs
+    /// the feed, the profile and follow requests — so the control lives once, in
+    /// Edit Profile, and this section links to it. A separate "share my ranking"
+    /// toggle here is exactly what was removed: two switches for one question
+    /// left accounts invisible to each other with no visible reason why.
     ///
     /// The unpublishable count is stated rather than omitted on purpose: a
     /// screen that says "48 titles" to somebody with 51 in their library reads
     /// as a bug or a lie, and the truth — the catalog never gave those three an
     /// id — is a sentence long.
+    @ViewBuilder
+    private var sharingSection: some View {
+        if let sync, session.isSignedIn {
+            Section {
+                LabeledContent("Your ranking", value: audience)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(isPrivateAccount
+                                        ? "Your ranking is visible to your followers"
+                                        : "Your ranking is visible to anyone on Binged")
+
+                LabeledContent("Titles others can see", value: "\(sync.publishableCount)")
+
+                if sync.unpublishableCount > 0 {
+                    LabeledContent(
+                        "Not on your account",
+                        value: "\(sync.unpublishableCount)"
+                    )
+                }
+
+                if sync.pendingCount > 0 {
+                    LabeledContent("Waiting to sync", value: bucketsPhrase(sync.pendingCount))
+                }
+
+                // Named for what it changes rather than for where it goes:
+                // "Edit Profile" already appears in the Account section, and a
+                // second row with the same label reads as a duplicate rather
+                // than as the answer to the row above it.
+                NavigationLink("Account Privacy") { EditProfileView() }
+            } header: {
+                Text("Sharing")
+            } footer: {
+                Text(sharingFooter)
+            }
+        }
+    }
+
+    private var isPrivateAccount: Bool { session.profile?.isPrivate == true }
+
+    private var audience: String {
+        isPrivateAccount ? "Followers only" : "Anyone on Binged"
+    }
+
+    private var sharingFooter: String {
+        let who = isPrivateAccount
+            ? "Your account is private, so only people whose follow request you "
+                + "have accepted can see your ranking."
+            : "Your account is public, so anyone signed in to Binged can see your "
+                + "ranking. Turn on Private account in Edit Profile to limit it to "
+                + "followers you approve."
+        // Said in both states, because "followers only" must not be heard as
+        // "nothing is stored". The account holds the library either way; that is
+        // what makes signing in on another device restore it.
+        let base = who
+            + " They see the title, its position and its list — a score appears "
+            + "only once a list holds "
+            + "\(MediaLibraryViewModel.minimumBucketSizeForScore) titles. Either "
+            + "way your ranking is saved to your account, which is what restores "
+            + "it when you sign in on another device."
+
+        guard let sync, sync.unpublishableCount > 0 else { return base }
+        let count = sync.unpublishableCount
+        return base + (count == 1
+            ? " 1 title stays on this device only — the catalog gave it no id."
+            : " \(count) titles stay on this device only — the catalog gave them no id.")
+    }
+
     /// What the account has given *back* to this device.
     ///
     /// Exists because a failed restore was previously invisible: `lastError` was
@@ -162,66 +221,6 @@ struct SettingsView: View {
                        + "your account and will not appear on your other devices.")
             }
         }
-    }
-
-    @ViewBuilder
-    private var publishingSection: some View {
-        if let sync, session.isSignedIn {
-            Section {
-                LabeledContent(
-                    "Visible to followers",
-                    value: sync.consentDecision == true ? "Yes" : "No"
-                )
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(sync.consentDecision == true
-                                    ? "Your ranking is visible to followers"
-                                    : "Your ranking is not visible to anyone")
-                if sync.pendingCount > 0 {
-                    LabeledContent("Waiting to sync", value: bucketsPhrase(sync.pendingCount))
-                }
-
-                if sync.consentDecision == true {
-                    LabeledContent("Titles they can see", value: "\(sync.publishableCount)")
-                    Button("Hide My Ranking", role: .destructive) {
-                        showUnpublishConfirmation = true
-                    }
-                    .disabled(isWithdrawing)
-                } else {
-                    Button("Show My Followers") { Task { await startPublishing() } }
-                    if removalFailed {
-                        Button("Retry Hiding", role: .destructive) {
-                            Task { await removePublished() }
-                        }
-                        .disabled(isWithdrawing)
-                    }
-                }
-            } header: {
-                Text("Sharing")
-            } footer: {
-                Text(publishingFooter)
-            }
-        }
-    }
-
-    private var publishingFooter: String {
-        guard let sync else { return "" }
-        let shared = sync.consentDecision == true
-            ? "Followers see the title, its position and its list. A score "
-                + "appears only once a list holds "
-                + "\(MediaLibraryViewModel.minimumBucketSizeForScore) titles."
-            : "Nobody else can see your ranking. You can turn this on at any time."
-        // Said in both states, because "no" must not be heard as "nothing is
-        // stored". The account holds the library either way; that is what makes
-        // signing in on another device restore it.
-        let sync_ = " Your account keeps your library either way, so signing in "
-            + "on another device restores it."
-        let base = shared + sync_
-        guard sync.unpublishableCount > 0 else { return base }
-        let count = sync.unpublishableCount
-        let extra = count == 1
-            ? " 1 title stays on this device only — the catalog gave it no id."
-            : " \(count) titles stay on this device only — the catalog gave them no id."
-        return base + extra
     }
 
     private func bucketsPhrase(_ count: Int) -> String {
@@ -302,58 +301,8 @@ struct SettingsView: View {
     private func deleteAccount() async {
         isDeleting = true
         defer { isDeleting = false }
-        // The answer belongs to the account. Forgetting it *before* the account
-        // goes is deliberate: afterwards there is no user id to key it to, and
-        // a stale grant would be found by whoever signs in next.
-        sync?.forgetConsent()
         await session.deleteAccount()
         if let error = session.lastError { errorMessage = error }
-    }
-
-    private func startPublishing() async {
-        await applyVisibility(true)
-    }
-
-    /// Withdraws consent and hides what is already up there.
-    ///
-    /// One action, not two: an answer that left the old rows visible would be a
-    /// switch that does not do what it says.
-    private func stopPublishing() async {
-        await applyVisibility(false)
-    }
-
-    private func applyVisibility(_ granted: Bool) async {
-        guard let sync else { return }
-        isWithdrawing = true
-        defer { isWithdrawing = false }
-        do {
-            try await sync.record(consent: granted)
-            removalFailed = false
-        } catch {
-            // The local answer is saved; the server's copy is not. Say exactly
-            // that rather than promising a retry nothing performs.
-            removalFailed = !granted
-            errorMessage = granted
-                ? "Saved, but your followers may not see your ranking yet. "
-                    + "Try again from Settings when you are online."
-                : "Saved on this device, but your ranking may still be visible "
-                    + "to followers. Try again from Settings when you are online."
-        }
-    }
-
-    /// Retries the hide on its own, for when the flip failed but the answer
-    /// stands.
-    private func removePublished() async {
-        guard let sync else { return }
-        isWithdrawing = true
-        defer { isWithdrawing = false }
-        do {
-            try await sync.reapplyVisibility()
-            removalFailed = false
-        } catch {
-            errorMessage = "Still could not reach the server. Your ranking may "
-                + "remain visible to followers until this succeeds."
-        }
     }
 }
 

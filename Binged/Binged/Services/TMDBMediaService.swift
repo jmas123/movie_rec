@@ -154,6 +154,50 @@ final class TMDBMediaService: MediaService, CandidateSource, @unchecked Sendable
         return details.isEmpty ? nil : details
     }
 
+    /// Everything a cast member has been in, most prominent first.
+    ///
+    /// Sorted by TMDB's popularity rather than by date: an actor's list is
+    /// long, mostly obscure, and the first screenful decides whether the page
+    /// is useful. Popularity is the catalog's opinion and never touches a
+    /// ranking — it orders a list of candidates here, exactly as it does for
+    /// the recommendation pool.
+    ///
+    /// Capped, because a working actor has hundreds of credits and every one of
+    /// them becomes an id in a request to the server. The cap is applied after
+    /// the sort, so what is dropped is the tail nobody scrolls to.
+    func personCredits(id: String) async -> [MediaItem] {
+        guard let tmdbId = Int(id), tmdbId > 0 else { return [] }
+        guard let url = TMDBEndpoint.personCredits(personId: tmdbId) else { return [] }
+
+        let key = CatalogCacheKey.personCredits(tmdbId: tmdbId)
+        guard let dto: TMDBPersonCreditsDTO = try? await get(url, cacheKey: key) else { return [] }
+
+        let vocabulary = await loadVocabulary()
+        let credits = (dto.cast ?? [])
+            .sorted { ($0.popularity ?? 0) > ($1.popularity ?? 0) }
+            .compactMap { $0.makeMediaItem(vocabulary: vocabulary) }
+
+        // TMDB lists a title once per role, so an actor who played twins — or a
+        // recurring guest across two shows of the same name — appears twice.
+        // Deduped on `externalId` because that is the key everything downstream
+        // joins on: two rows for one film would ask the server about it twice
+        // and draw it twice.
+        var seen = Set<String>()
+        return credits.filter { item in
+            guard let externalId = item.externalId else { return false }
+            return seen.insert(externalId).inserted
+        }
+        .prefix(Self.creditsCap)
+        .map { $0 }
+    }
+
+    /// How many of a person's credits to carry.
+    ///
+    /// Past the length of any real filmography worth showing, and comfortably
+    /// inside the 300 the RPC slices its array at — the cap that matters is the
+    /// server's, and this one exists so the client never discovers it.
+    static let creditsCap = 120
+
     // MARK: - Candidate pool
 
     /// One page of one mood component.

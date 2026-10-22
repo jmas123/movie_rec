@@ -276,6 +276,12 @@ final class MediaLibraryViewModel {
         item.lastRankedAt = .now
 
         recomputeBucket(vacatedSentiment, type: item.type)
+        // The queue owes a publish too, and this line is the fix for a
+        // watchlist that never left the device. Marked *after* the recompute
+        // above so both buckets are dirty when a title moves from a sentiment
+        // into the queue: the one it left needs rescoring and republishing, and
+        // the one it joined needs to exist on the server at all.
+        markDirty(nil, type: item.type)
         recordPost(item, kind: .wantToWatch)
         save()
     }
@@ -354,6 +360,7 @@ final class MediaLibraryViewModel {
     /// bug, and it has been got wrong twice already.
     func remove(_ item: MediaItem) {
         let vacatedSentiment = item.watchedStatus == .watched ? item.sentiment : nil
+        let wasQueued = item.watchedStatus == .wantToWatch
         let type = item.type
 
         modelContext.delete(item)
@@ -361,6 +368,10 @@ final class MediaLibraryViewModel {
         // Ordering matters: the row has to be gone before the bucket is
         // recomputed, or the deleted item is counted in its own replacement.
         recomputeBucket(vacatedSentiment, type: type)
+        // A deleted queue entry owes the same debt a deleted ranking does.
+        // Without this the title stays on the watchlist of every other device
+        // the account has ever signed in on.
+        if wasQueued { markDirty(nil, type: type) }
         save()
     }
 
@@ -412,6 +423,7 @@ final class MediaLibraryViewModel {
         // Captured before the reassignment below, so we can tell whether this
         // call is re-rating an item out of a bucket it was already ranked in.
         let vacatedSentiment = item.watchedStatus == .watched ? item.sentiment : nil
+        let wasQueued = item.watchedStatus == .wantToWatch
 
         item.watchedStatus = .watched
         item.sentiment = sentiment
@@ -425,6 +437,10 @@ final class MediaLibraryViewModel {
         // path may be abandoned before `finalizeRanking` runs. Marking here
         // covers both, and repeats coalesce.
         markDirty(sentiment, type: item.type)
+        // Ranking something off the watchlist empties its place in the queue,
+        // and the server has to be told: without this the title stays queued on
+        // every other device while being ranked on this one.
+        if wasQueued { markDirty(nil, type: item.type) }
         recordPost(item, kind: .ranked)
 
         // Re-rating into a *different* bucket leaves the old one one item
@@ -845,8 +861,15 @@ final class MediaLibraryViewModel {
     ///
     /// Safe to call for a bucket that is about to be recomputed or has just
     /// been: the outbox row is keyed by bucket, so repeats coalesce.
+    /// `nil` is the want-to-watch queue, **not** "nothing to do".
+    ///
+    /// This used to `guard let sentiment else { return }`, which is the reason
+    /// the watchlist never reached the account: every path that queues a title
+    /// calls this with nil, so every one of them returned here and no outbox row
+    /// was ever written for the queue. The restore path, the merge, the schema
+    /// and `PART-IV-SYNC.md` §7 were all built for queued rows; only this half
+    /// was missing, so nothing wrote them and nothing read them back.
     private func markDirty(_ sentiment: Sentiment?, type: MediaType) {
-        guard let sentiment else { return }
         dirtyBuckets.insert(PendingPublish.key(mediaType: type, sentiment: sentiment))
     }
 
@@ -863,8 +886,21 @@ final class MediaLibraryViewModel {
         for key in keys where !existing.contains(key) {
             let parts = key.split(separator: "|")
             guard parts.count == 2,
-                  let type = MediaType(rawValue: String(parts[0])),
-                  let sentiment = Sentiment(rawValue: String(parts[1])) else { continue }
+                  let type = MediaType(rawValue: String(parts[0])) else { continue }
+
+            let raw = String(parts[1])
+            // Three cases, and the middle one is the queue. A raw value that is
+            // neither a sentiment nor the marker is a key this build cannot
+            // parse, and enqueuing it would put a row in the outbox that the
+            // drain can only ever discard.
+            let sentiment: Sentiment?
+            if raw == PendingPublish.queueMarker {
+                sentiment = nil
+            } else if let parsed = Sentiment(rawValue: raw) {
+                sentiment = parsed
+            } else {
+                continue
+            }
             modelContext.insert(PendingPublish(mediaType: type, sentiment: sentiment))
         }
     }
@@ -890,12 +926,27 @@ final class MediaLibraryViewModel {
     /// Built here rather than in the sync engine because the bucket is a
     /// library concept — and because a payload assembled from anything other
     /// than the live bucket is the vacated-bucket bug again.
-    func publishPayload(mediaType: MediaType, sentiment: Sentiment) -> PublishPayload {
+    func publishPayload(mediaType: MediaType, sentiment: Sentiment?) -> PublishPayload {
         PublishPayload(
             mediaType: mediaType,
             sentiment: sentiment,
-            bucket: sortedBucket(for: sentiment, type: mediaType)
+            bucket: bucketContents(sentiment, type: mediaType)
         )
+    }
+
+    /// A bucket's live contents — a sentiment's ranked titles, or the queue.
+    ///
+    /// The queue has no order to preserve: `rankInBucket` is null for every
+    /// queued row by constraint, so sorting it would be inventing a position
+    /// the user never chose. Sorted by title only so a payload is stable
+    /// between drains and a diff of two requests is readable.
+    private func bucketContents(_ sentiment: Sentiment?, type: MediaType) -> [MediaItem] {
+        guard let sentiment else {
+            return wantToWatch
+                .filter { $0.type == type }
+                .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        }
+        return sortedBucket(for: sentiment, type: type)
     }
 
     func clearPendingPublish(_ pending: PendingPublish) {

@@ -32,6 +32,17 @@ protocol AuthService: Sendable {
     /// The signed-in user's profile, or `nil` when signed out.
     func currentProfile() async throws -> UserProfile?
 
+    /// Whether a credential for this account is still on the device.
+    ///
+    /// **Local only, and never a network call.** `currentProfile()` cannot
+    /// answer this: it fails identically for "signed out" and "the server was
+    /// unreachable", and treating the second as the first is how a session
+    /// appears to expire every time the app is opened on a bad connection.
+    /// This one is the Keychain's answer, so it is available offline, and it
+    /// goes false only when the session was really ended — a sign-out, or a
+    /// refresh token the server itself rejected.
+    var hasStoredSession: Bool { get async }
+
     /// Best-effort availability check for instant feedback. The unique
     /// constraint is the real arbiter — see `Handle`.
     func isHandleAvailable(_ handle: String) async -> Bool

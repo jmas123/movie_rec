@@ -210,6 +210,10 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         return rows.first
     }
 
+    var hasStoredSession: Bool {
+        get async { await client.isSignedIn }
+    }
+
     // MARK: Password reset
 
     func sendPasswordReset(email: String) async throws {
